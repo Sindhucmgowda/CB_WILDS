@@ -2,6 +2,26 @@
 __pycache__/
 *.py[cod]
 *$py.class
+runs/
+random_scripts/
+utils/log/
+report/
+*.ipynb
+.vscode
+*.pyc
+*.aux 
+*.fdb_latexmk 
+*.log 
+*.fls 
+*.synctex.gz
+*.mat
+*.png
+*.jpg
+*.tex
+*.pdf
+*.pth
+*.txt
+
 
 # C extensions
 *.so
@@ -127,3 +147,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
