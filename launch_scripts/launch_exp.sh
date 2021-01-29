@@ -10,4 +10,5 @@ slurm_pre="--partition t4v2,p100,t4v1,rtx6000 --gres gpu:1 --mem 40gb -c 4 --job
 python sweep.py launch \
     --experiment ${1} \
     --output_dir "/scratch/ssd001/home/haoran/wilds_results/${1}/" \
-    --slurm_pre "\"${slurm_pre}\""
+    --slurm_pre "${slurm_pre}" \
+    --command_launcher "slurm"

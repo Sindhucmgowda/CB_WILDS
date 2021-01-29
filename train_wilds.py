@@ -15,10 +15,12 @@ import math
 # from data.data_camelyon import Camelyon17Dataset
 from data.data_cam import Camelyon, split_train_test, split_n_label, transform   
 from utils.logging import setup_logs
-from src.training import train, snapshot, train_helper
+from src.training import train_step, snapshot, train_helper
 from src.validation import validation, validation_helper 
 from src.prediction import prediction_analysis, prediction_analysis_helper
 from utils.early_stopping import EarlyStopping 
+from utils.checkpointing import save_checkpoint, has_checkpoint, load_checkpoint
+from utils.infinite_loader import StatefulSampler, InfiniteDataLoader
 
 # from bootstrap.bootstrap_add import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_par_front_n_back, cb_label_flip
 from bootstrap.bootstrap_wilds import cb_backdoor
@@ -64,8 +66,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size','-b', type=int, default=64, required=False)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--es_patience', type=int, default=5) # *val_freq steps
-    parser.add_argument('--val_freq', type=int, default=200)
+    parser.add_argument('--es_patience', type=int, default=10) # *val_freq steps
+    parser.add_argument('--val_freq', type=int, default=100)
     parser.add_argument('--use_pretrained', action = 'store_true')
 
     args = parser.parse_args()
@@ -158,7 +160,7 @@ if __name__ == "__main__":
 
     # optimizer 
     optimizer = optim.Adam(model_conv.parameters(), lr = args.lr)         
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', patience=5, factor=0.1)
 
     ## load data of required kind using DataLoader and creating Dataclasses
     if train_type == 'Conf': 
@@ -171,48 +173,63 @@ if __name__ == "__main__":
         train_data = Camelyon(labels = labels)
         valid_data = Camelyon(labels = labels_v)
 
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
     
-    es = EarlyStopping(patience = args.es_patience)         
-    n_chunks_per_epoch = int(math.ceil(len(train_loader)/args.val_freq))
-    n_chunks = args.epochs * n_chunks_per_epoch 
-    counter = 0
+    es = EarlyStopping(patience = args.es_patience)             
+    n_steps = args.epochs * (len(train_data) // batch_size)
     
-    for epoch in range(1, args.epochs + 1):
+    if has_checkpoint():
+        state = load_checkpoint()
+        model_conv.load_state_dict(state['model_dict'])
+        optimizer.load_state_dict(state['optimizer_dict'])
+        exp_lr_scheduler.load_state_dict(state['scheduler_dict'])
+        train_loader.sampler.load_state_dict(state['sampler_dict'])
+        start_step = state['start_step']
+        es = state['es']
+        torch.random.set_rng_state(state['rng'])
+        print("Loaded checkpoint at step %s" % start_step)
+    else:
+        start_step = 0          
+    
+    tr_losses, tr_accs = [], []
+    for step in range(start_step, n_steps):    
         if es.early_stop:
-            break
-        iter_dl = iter(train_loader)    
-        for chunk in range(n_chunks_per_epoch):   
-            counter += 1
-            if es.early_stop:
-                break
+            break               
+        data, target, _ = next(iter(train_loader))
+       
+        start_timer = timer()
 
-            chunk_timer = timer()
-
-            # Train and validate
-            tr_loss, tr_acc = train(args, model_conv, writer, 
-                device, iter_dl, optimizer, counter , batch_size, n_steps = args.val_freq)
-
+        # Train and validate
+        step_loss, step_acc = train_step(data, target, args, model_conv, writer, 
+                                     device, optimizer, batch_size) 
+        
+        end_timer = timer()
+        tr_losses.append(step_loss)
+        tr_accs.append(step_acc)        
+            
+        if step % args.log_interval == 0:
+            logger.info('Train Step: {} \tStep time: {:.4f}\tAccuracy: {:.4f}\tLoss: {:.6f}'.format(
+                step, end_timer - start_timer, step_acc, step_loss))
+            
+        if step % args.val_freq == 0:
             val_acc, val_loss, val_AUC, val_conf_mat, val_F1_score = validation(args, 
                 model_conv, device, validation_loader, batch_size)
 
-            end_chunk_timer = timer()
+            writer.add_scalar(f'Loss/train/step/{train_type}', np.mean(tr_losses), step)
+            writer.add_scalar(f'Loss/valid/step/{train_type}', val_loss, step)
+            writer.add_scalar(f'AUC/valid/step/{train_type}', val_AUC, step)
+            writer.add_scalar(f'Accuracy/train/step/{train_type}', np.mean(tr_accs), step)
+            
+            tr_losses, tr_accs = [], []
 
-            writer.add_scalar(f'Loss/train/chunk/{train_type}', tr_loss, counter)
-            writer.add_scalar(f'Loss/valid/chunk/{train_type}', val_loss, counter)
-            writer.add_scalar(f'AUC/valid/chunk/{train_type}', val_AUC, counter)
-            writer.add_scalar(f'Accuracy/train/chunk/{train_type}', tr_acc, counter)
+            exp_lr_scheduler.step(val_AUC)
 
-            exp_lr_scheduler.step()
-
-            for param_group in optimizer.param_groups:
-                logger.info(f"Current learning rate is: {param_group['lr']}")
-                writer.add_scalar('LearningRate/chunk',param_group['lr'])
-
-            logger.info("#### End chunk {}/{}, elapsed time: {}".format(counter, n_chunks, end_chunk_timer - chunk_timer))
-
-            es(-val_AUC, counter , model_conv.state_dict(), Path(res_pth)/'model.pt')   
+            es(-val_AUC, step , model_conv.state_dict(), Path(res_pth)/'model.pt')   
+            
+            save_checkpoint(model_conv, optimizer, exp_lr_scheduler,
+                            train_loader.sampler.state_dict(train_loader._infinite_iterator), 
+                            step+1, es, torch.random.get_rng_state())
         
     ## end 
     end_global_timer = timer()

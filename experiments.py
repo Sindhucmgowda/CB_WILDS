@@ -1,10 +1,4 @@
 import numpy as np
-
-def stringify(key, item):
-    if isinstance(item, (list, tuple)):
-        return f'--{key} ' + ' '.join(map(str, item))
-    else:
-        return f'--{key} {item}'
     
 def combinations(grid):
     keys = list(grid.keys())

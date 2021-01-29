@@ -87,7 +87,8 @@ if __name__ == "__main__":
     parser.add_argument('--experiment', type=str, required = True)
     parser.add_argument('--output_dir', type=str, required=True)
     parser.add_argument('--skip_confirmation', action='store_true')
-    parser.add_argument('--slurm_pre', type=str, required = True)    
+    parser.add_argument('--slurm_pre', type=str, required = True)  
+    parser.add_argument('--command_launcher', type=str, required=True)
     args = parser.parse_args()        
     
     args_list = make_args_list(args.experiment)
@@ -107,7 +108,7 @@ if __name__ == "__main__":
         print(f'About to launch {len(to_launch)} jobs.')
         if not args.skip_confirmation:
             ask_for_confirmation()
-        launcher_fn = command_launchers.REGISTRY[args.command_launcher]
+        launcher_fn = launchers.REGISTRY[args.command_launcher]
         Job.launch(to_launch, launcher_fn)
 
     elif args.command == 'delete_incomplete':
