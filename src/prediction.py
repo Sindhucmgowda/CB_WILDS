@@ -90,7 +90,7 @@ def prediction_analysis(args, model, device, data_loader, batch_size):
     logger.info('===> Evaluation set: Average loss: {:.4f}\tAccuracy: {:.4f}\n'.format(
                 total_loss, total_acc))
 
-    return total_acc, total_loss, AUC, conf_mat, F1_score  
+    return total_acc, total_loss, AUC, conf_mat, F1_score, target_list, pred_list 
 
 def prediction_analysis_helper(args, model, device, data_loader, batch_size):
     
@@ -156,6 +156,6 @@ def prediction_analysis_helper(args, model, device, data_loader, batch_size):
     logger.info('===> Evaluation set: Average loss: {:.4f}\tAccuracy: {:.4f}\n'.format(
                 total_loss, total_acc))
 
-    return total_acc, total_loss, AUC, conf_mat, F1_score  
+    return total_acc, total_loss, AUC, conf_mat, F1_score
 
 

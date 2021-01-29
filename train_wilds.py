@@ -11,6 +11,7 @@ import pdb
 import os.path as osp 
 from pathlib import Path
 import math
+import json
 
 # from data.data_camelyon import Camelyon17Dataset
 from data.data_cam import Camelyon, split_train_test, split_n_label, transform   
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_pretrained', action = 'store_true')
 
     args = parser.parse_args()
-
+    
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -85,6 +86,9 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
     res_pth = os.path.join(args.output_dir, 'results') 
     os.makedirs(res_pth, exist_ok=True)
+        
+    with open(Path(res_pth)/'args.json', 'w') as outfile:
+        json.dump(vars(args), outfile)
     
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu") 
@@ -95,7 +99,7 @@ if __name__ == "__main__":
     logger = setup_logs(args.output_dir, run_name) # setup logs
     
     ## for data augmentation (DA) scenario (only train in the confounded case)    
-    keylist_test = ['Unconf', 'Conf']
+    keylist_test = ['Unconf', 'Conf', 'Reverse']
     batch_size = args.batch_size
 
     index_n_labels = split_n_label(split = 'train', domains = args.domains, data = 'camelyon')
@@ -177,7 +181,8 @@ if __name__ == "__main__":
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
     
     es = EarlyStopping(patience = args.es_patience)             
-    n_steps = args.epochs * (len(train_data) // batch_size)
+    n_steps = args.epochs * (len(train_data) // batch_size)    
+    # n_steps = 30
     
     if has_checkpoint():
         state = load_checkpoint()
@@ -239,55 +244,39 @@ if __name__ == "__main__":
 #     key_results = ["Conf Train: Conf Test","Conf Train: Unconf Test","Deconf Train: Conf Test","Deconf Train: Unconf Test"]
 #     final_acc = dict.fromkeys(key_results,None)
 #     metrics = dict.fromkeys(key_results, None)
-    final_acc, metrics = {}, {}
+    metrics = {}
     
     index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = 'camelyon')
 
     del(optimizer)
 
     for test_type in keylist_test: 
-        if test_type == 'Conf':             
-            if args.type == 'back':  
-                labels_conf_t, _ = cb_backdoor(index_n_labels_t,p=0.5,
-                                                qyu=args.corr_coff,N=2*args.samples)
-            elif args.type == 'front':
-                labels_conf_t, _ = cb_frontdoor(index_n_labels_t,p=0.5,
-                                                qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'back_front':
-                labels_conf_t, _ = cb_front_n_back(index_n_labels_t,p=0.5,
-                                                qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'par_back_front':
-                labels_conf_t, _ = cb_par_front_n_back(index_n_labels_t,p=0.5,
-                                                qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'label_flip':
-                labels_conf_t, _ = cb_label_flip(index_n_labels_t,p=0.5,
-                                        qyu=args.corr_coff,qzu0= args.qzu0,qzu1=args.qzu1,
-                                        N=args.samples)
-    
-            test_data = Camelyon(labels = labels_conf_t)
-            test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True) # set shuffle to True
+        if test_type == 'Conf':
+            qyu = args.corr_coff
+        elif test_type == 'Unconf':
+            qyu = 0.5
+        elif test_type == 'Reverse':
+            qyu = 1- args.corr_coff
+                        
+        if args.type == 'back':  
+            labels_t, _ = cb_backdoor(index_n_labels_t,p=0.5,
+                                            qyu=qyu,N=2*args.samples)
+        elif args.type == 'front':
+            labels_t, _ = cb_frontdoor(index_n_labels_t,p=0.5,
+                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+        elif args.type == 'back_front':
+            labels_t, _ = cb_front_n_back(index_n_labels_t,p=0.5,
+                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+        elif args.type == 'par_back_front':
+            labels_t, _ = cb_par_front_n_back(index_n_labels_t,p=0.5,
+                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+        elif args.type == 'label_flip':
+            labels_t, _ = cb_label_flip(index_n_labels_t,p=0.5,
+                                    qyu=qyu,qzu0= args.qzu0,qzu1=args.qzu1,
+                                    N=2*args.samples)
 
-        elif test_type == 'Unconf':  
-            # pdb.set_trace()
-            if args.type == 'back': 
-                labels_unconf_t, _ = cb_backdoor(index_n_labels_t,p=0.5,
-                                                qyu=0.5,N=2*args.samples)
-            elif args.type == 'front':
-                labels_unconf_t, _ = cb_frontdoor(index_n_labels_t,p=0.5,
-                                                qyu=0.5,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'back_front':
-                labels_unconf_t, _ = cb_front_n_back(index_n_labels_t,p=0.5,
-                                                qyu=0.5,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'par_back_front':
-                labels_unconf_t, _ = cb_par_front_n_back(index_n_labels_t,p=0.5,
-                                                qyu=0.5,qzy=args.qzy,N=2*args.samples)
-            elif args.type == 'label_flip':
-                labels_unconf_t, _ = cb_label_flip(index_n_labels_t,p=0.5,
-                                        qyu=0.5,qzu0= args.qzu0,qzu1=args.qzu1,
-                                        N=2*args.samples)
-
-            test_data = Camelyon(labels = labels_unconf_t)
-            test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True) # set shuffle to True            
+        test_data = Camelyon(labels = labels_t)
+        test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True)
 
         logger.info(f'===> loading best model {train_type} for prediction')
         model_conv.load_state_dict(torch.load(Path(res_pth)/'model.pt'))
@@ -295,22 +284,21 @@ if __name__ == "__main__":
         logger.info(f'===> testing best {train_type} model on {test_type} for prediction')
 
         # test_acc,test_loss = prediction(args, model_conv, device, test_loader, batch_size)       
-        test_acc, test_loss, AUC, conf_mat, F1_score = prediction_analysis(args, model_conv, device, test_loader, batch_size)   
-
-        final_acc[f'{train_type} Train: {test_type} Test'] = [test_acc, AUC]
-        metrics[f'{train_type} Train: {test_type} Test'] = [conf_mat, F1_score]
-
-        # final_acc[f'{train_type} Train: {test_type} Test'] = [test_acc]
-        # metrics[f'{train_type} Train: {test_type} Test'] = [conf_mat, F1_score]
-
+        test_acc, test_loss, AUC, conf_mat, F1_score, target_list, pred_list = prediction_analysis(args, model_conv, device, test_loader, batch_size)   
+        
+        metrics[f'{test_type} target'] = target_list
+        metrics[f'{test_type} pred'] = pred_list
+        metrics[f'{test_type} acc'] = test_acc
+        metrics[f'{test_type} auc'] = AUC
+        metrics[f'{test_type} conf_mat'] = conf_mat
+        
     writer.flush()
     writer.close()
     logger.info("################## Success #########################")
-    logger.info(f'Final Accuracies and AUC scores: {final_acc}')
-    # logger.info(f'Final Metrics (Confusion Metrics and F1 score): {metrics}')
+    logger.info(f'Final AUC scores: {AUC}')
 
     with open(os.path.join(res_pth, 'final_results.p'), 'wb') as res: 
-        pickle.dump([final_acc, metrics], res)
+        pickle.dump(metrics, res)
         
     with open(os.path.join(res_pth, 'done'), 'w') as f:
         f.write('done')    
