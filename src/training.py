@@ -8,7 +8,7 @@ logger = logging.getLogger("causal_bootstrap")
 def cost_fn(out, tar, weighting):
     return F.cross_entropy(out, tar, weight=weighting)
 
-def train(args, model, writer, device, train_loader, optimizer, epoch, batch_size):
+def train(args, model, writer, device, train_loader, optimizer, epoch, batch_size, n_steps = None):
 
     model.train() # training model 
 
@@ -16,6 +16,9 @@ def train(args, model, writer, device, train_loader, optimizer, epoch, batch_siz
     epoch_acc = 0
 
     offset = len(train_loader) * (epoch-1)
+    
+    if n_steps is None:
+        n_steps = len(train_loader)
 
     for batch_idx, [data, target, _ ] in enumerate(train_loader):
         
@@ -54,14 +57,16 @@ def train(args, model, writer, device, train_loader, optimizer, epoch, batch_siz
         epoch_acc += acc
         
         if batch_idx % args.log_interval == 0:
-
-            logger.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tAccuracy: {:.4f}\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), acc, loss.item()))
+            logger.info('Train Chunk: {} [{}/{} ({:.0f}%)]\tAccuracy: {:.4f}\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), n_steps*data.shape[0],
+                100. * batch_idx / n_steps, acc, loss.item()))
         
         # index.append((batch_idx+offset))
         writer.add_scalar('Loss/train/batch', loss.item(), (batch_idx+offset))
         writer.add_scalar('Accuracy/train/batch', acc, (batch_idx+offset))
+        
+        if batch_idx + 1 == n_steps:
+            break
 
     return (epoch_loss/len(train_loader)), (epoch_acc/len(train_loader))
 

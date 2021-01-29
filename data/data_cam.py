@@ -8,6 +8,7 @@ from scipy.misc import imread
 from sklearn.model_selection import StratifiedShuffleSplit
 
 import pdb
+import pickle
 
 import PIL
 import matplotlib.pyplot as plt 
@@ -20,62 +21,52 @@ from PIL import Image
 from tqdm import tqdm 
 import multiprocessing as mp
 from multiprocessing import Pool
+import Constants
+from pathlib import Path
 
 def transform(x):
-    trans = transforms.Compose([transforms.Resize(224),
-                                transforms.CenterCrop(224),
+    trans = transforms.Compose([transforms.Resize(224),                                
                                 transforms.ToTensor()])
     return trans(x)
 
-class Camelyon(Dataset):
-    
-    def __init__(self, labels, transform, img_pth = "/scratch/gobi2/sindhu/datasets/WILDS/camelyon/camelyon17_v1.0"):
-        
+class Camelyon(Dataset):    
+    def __init__(self, labels, cache = False):        
         self.labels = labels
-        self.img_pth = img_pth
-        self.tras = transform
+        self.img_pth = Constants.camelyon_path
+        self.cache_dir = Constants.camelyon_cache_dir
+        self.cache = cache
         
     def __len__(self):
-        # return 600
         return len(self.labels)
     
-    def load_img(self, idx):
-
-        img_idx = self.labels[idx][0]
+    def load_img(self, img_idx):        
         img = imread(osp.join(self.img_pth, img_idx)) 
-
-        if len(img.shape) == 2:
-            img = img[:, :, np.newaxis]
-            img = np.concatenate([img, img, img], axis=2)
-        if len(img.shape)>2:
-            img = img[:,:,0]
-            img = img[:, :, np.newaxis]
-            img = np.concatenate([img, img, img], axis=2)
-
-        img = PIL.Image.fromarray(img)
-        
-        # plt.imshow(img)
-        # plt.savefig(f"sam_bef_{self.labels[idx][2]}_{self.labels[idx][1]}")        
-        
-        img = self.tras(img)
-        
-        # im_path = osp.join(f'sample_{self.labels[idx][2]}_{self.labels[idx][1]}.jpg')
-        # print(f'{self.labels[idx][0]}')
-        # print(f'{self.labels[idx][2]}_{self.labels[idx][1]}')
-        # sko.imsave(im_path, img.permute(1,2,0).cpu().numpy())
+        img = PIL.Image.fromarray(img).convert('RGB')
+        img = transform(img)
 
         return img
 
     def __getitem__(self, idx):
-
-        img = self.load_img(idx)
+        img_idx = self.labels[idx][0]
+        cache_path = self.get_cache_path(self.cache_dir, img_idx)
+        if self.cache and cache_path.is_file():
+            img = torch.load(cache_path.open('rb'))
+        else:
+            img = self.load_img(img_idx)
+            if self.cache:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                torch.save(img, cache_path.open('wb'))
+                
         lab = torch.tensor(int(self.labels[idx][1]))
-        conf = int(self.labels[idx][2])
-
+        conf = int(self.labels[idx][2])    
+        
         return img, lab, conf  
+    
+    def get_cache_path(self, cache_dir, img_idx):
+        return (Path(cache_dir)/img_idx).with_suffix('.pt')
 
 ## loading and splitting metadata according to convinience
-def split_n_label(split, domains, data = 'camelyon', root_dir='/scratch/gobi2/sindhu/datasets/WILDS'):
+def split_n_label(split, domains, data = 'camelyon', root_dir=Constants.wilds_root_dir):
     if data == 'camelyon': 
         split_dir = os.path.join(root_dir,'camelyon/camelyon17_v1.0',f'{split}.csv')
         metadata = pd.read_csv(split_dir)
@@ -86,8 +77,7 @@ def split_n_label(split, domains, data = 'camelyon', root_dir='/scratch/gobi2/si
         return metadata
 
 ## loading and splitting metadata according to convinience 
-def split_train_test(train_ratio, root_dir='/scratch/gobi2/sindhu/datasets/WILDS'): 
-    
+def split_train_test(train_ratio, root_dir=Constants.wilds_root_dir): 
     data_dir = os.path.join(root_dir, 'camelyon/camelyon17_v1.0')
     # read in metadata 
     metadata_df = pd.read_csv(
@@ -112,7 +102,6 @@ def split_train_test(train_ratio, root_dir='/scratch/gobi2/sindhu/datasets/WILDS
     sss1 = StratifiedShuffleSplit(n_splits=1, test_size= 1-train_ratio, random_state=1234)
     sss2 = StratifiedShuffleSplit(n_splits=1, test_size=0.5, random_state=1234)
 
-    import pdb; pdb.set_trace()
     # within each uni_y (0,1) split the domains equally in train, val and test 
     indices = []
     for y in y_uni:
@@ -125,7 +114,6 @@ def split_train_test(train_ratio, root_dir='/scratch/gobi2/sindhu/datasets/WILDS
     random.shuffle(train_ind); random.shuffle(val_ind) ; random.shuffle(test_ind)
     split_ind = {"train": train_ind, "valid": val_ind , "test": test_ind}
 
-    import pdb; pdb.set_trace()
     # saving the split data
     for sp in split_ind.keys():
         met_spl = metadata_df.iloc[split_ind[sp]]
