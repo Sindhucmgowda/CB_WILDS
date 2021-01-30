@@ -29,7 +29,7 @@ class Job:
 
         self.train_args = copy.deepcopy(train_args)
         self.train_args['output_dir'] = self.output_dir
-        command = ['python', 'train_wilds.py']
+        command = ['python', 'train.py']
         for k, v in sorted(self.train_args.items()):
             if isinstance(v, (list, tuple)):
                 v = ' '.join([str(v_) for v_ in v])
@@ -41,7 +41,7 @@ class Job:
         
         print(self.command_str)
         
-        if os.path.exists(os.path.join(self.output_dir, 'done')):
+        if os.path.exists(os.path.join(self.output_dir, 'results/', 'done')):
             self.state = Job.DONE
         elif os.path.exists(self.output_dir):
             self.state = Job.INCOMPLETE

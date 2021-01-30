@@ -12,6 +12,7 @@ import os.path as osp
 from pathlib import Path
 import math
 import json
+import Constants
 
 # from data.data_camelyon import Camelyon17Dataset
 from data.data_cam import Camelyon, split_train_test, split_n_label, transform   
@@ -41,9 +42,38 @@ import torchvision.models as mod
 run_name = "cb" + time.strftime("-%Y-%m-%d_%H_%M_%S")
 print(run_name)
 
+def cb(conf_type, index_n_labels, p, qyu, N, qzy = None, qzu0 = None, qzu1 = None):
+    if conf_type == 'back':  
+        labels_conf, labels_deconf = cb_backdoor(index_n_labels,p=p,
+                                        qyu=qyu,
+                                        N=N)        
+    elif conf_type == 'front':
+        assert(qzy is not None)
+        labels_conf, labels_deconf = cb_frontdoor(index_n_labels,p=p,
+                                        qyu=qyu,qzy= qzy,
+                                        N=N)
+    elif conf_type == 'back_front':
+        assert(qzy is not None)
+        labels_conf, labels_deconf = cb_front_n_back(index_n_labels,p=p,
+                                        qyu=qyu,qzy= qzy,
+                                        N=N)
+    elif conf_type == 'par_back_front':
+        assert(qzy is not None)
+        labels_conf, labels_deconf = cb_par_front_n_back(index_n_labels,p=p,
+                                        qyu=qyu,qzy= qzy,
+                                        N=N)
+    elif conf_type == 'label_flip':
+        assert(qzu0 is not None and qzu1 is not None)
+        labels_conf, labels_deconf = cb_label_flip(index_n_labels,p=p,
+                                        qyu=qyu, qzu0=qzu0, qzu1=qzu1,
+                                        N=N)
+        
+    return (labels_conf, labels_deconf)    
+        
+
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description='Causal Bootstrapping')
-    parser.add_argument('--type','-t', type = str, choices = ['back'], required = True)
+    parser.add_argument('--type','-t', type = str, choices = ['back', 'front', 'back_front', 'label_flip'], required = True)
     parser.add_argument('--samples','-N', type = int, default=4000,required = False)
     parser.add_argument('--no-cuda','-g', action='store_true', default=False,
                         help='disables CUDA training')
@@ -52,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument('--log-interval','-i', type=int, required=False, default=1)
     parser.add_argument('--epochs','-e', type=int, required=False, default=15)
     
-    parser.add_argument('--data_type', choices = ['Conf', 'Deconf'], required = True)
+    parser.add_argument('--data_type', choices = ['Conf', 'Deconf', 'DA'], required = True)
 
     # parser.add_argument('--conf-type','-ct',type=str, required=True, default='rot')
     # parser.add_argument('--conf-val','-cv', type=float, required=False, default=0.5)
@@ -94,64 +124,25 @@ if __name__ == "__main__":
     device = torch.device("cuda" if use_cuda else "cpu") 
     print(device)
     
-    # print(torch.cuda.memory_summary(device=None, abbreviated=False))
     global_timer = timer() # global timer
-    logger = setup_logs(args.output_dir, run_name) # setup logs
-    
-    ## for data augmentation (DA) scenario (only train in the confounded case)    
-    keylist_test = ['Unconf', 'Conf', 'Reverse']
+    logger = setup_logs(args.output_dir, run_name) # setup logs       
     batch_size = args.batch_size
 
-    index_n_labels = split_n_label(split = 'train', domains = args.domains, data = 'camelyon')
-
     # Training samples (confounding and deconfounding)
-    if args.type == 'back':  
-        labels_conf, labels_deconf = cb_backdoor(index_n_labels,p=0.5,
-                                        qyu=args.corr_coff,
-                                        N=15*4700)        
-    elif args.type == 'front':
-        labels_conf, labels_deconf = cb_frontdoor(index_n_labels,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=15*4700)
-    elif args.type == 'back_front':
-        labels_conf, labels_deconf = cb_front_n_back(index_n_labels,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=15*4700)
-    elif args.type == 'par_back_front':
-        labels_conf, labels_deconf = cb_par_front_n_back(index_n_labels,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=15*4700)
-    elif args.type == 'label_flip':
-        labels_conf, labels_deconf = cb_label_flip(index_n_labels,p=0.5,
-                                        qyu=args.corr_coff,qzu0= args.qzu0,qzu1=args.qzu1,
-                                        N=15*4700)
-
-    index_n_labels_v = split_n_label(split = 'valid', domains = args.domains, data = 'camelyon')
- 
-    # ## Validation samples (confounding and deconfounding1)
-    if args.type == 'back':  
-        labels_conf_v, labels_deconf_v = cb_backdoor(index_n_labels_v,p=0.5,
-                                        qyu=args.corr_coff,
-                                        N=2*args.samples)
-    elif args.type == 'front':  
-        labels_conf_v, labels_deconf_v = cb_frontdoor(index_n_labels_v,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=2*args.samples)
-    elif args.type == 'back_front':  
-        labels_conf_v, labels_deconf_v = cb_front_n_back(index_n_labels_v,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=2*args.samples)
-
-    elif args.type == 'par_back_front':  
-        labels_conf_v, labels_deconf_v = cb_par_front_n_back(index_n_labels_v,p=0.5,
-                                        qyu=args.corr_coff,qzy= args.qzy,
-                                        N=2*args.samples)
-                    
-    elif args.type == 'label_flip':
-        labels_conf_v, labels_deconf_v = cb_label_flip(index_n_labels_v,p=0.5,
-                                        qyu=args.corr_coff,qzu0= args.qzu0,qzu1=args.qzu1,
-                                        N=2*args.samples)
-    # pdb.set_trace()
+    index_n_labels = split_n_label(split = 'train', domains = args.domains, data = args.data)
+    # slightly wasting compute for DA since trained models will be the same for all corr_coff
+    qyu_train = 0.5 if args.type == 'DA' else args.corr_coff 
+    
+    labels_conf, labels_deconf = cb(args.type, index_n_labels, p = 0.5, qyu = qyu_train, 
+                                    N = Constants.train_N[args.data], qzy = args.qzy, 
+                                   qzu0 = args.qzu0, qzu1 = args.qzu1)
+    
+    # Validation samples (confounding and deconfounding1)
+    index_n_labels_v = split_n_label(split = 'valid', domains = args.domains, data = args.data)    
+    labels_conf_v, labels_deconf_v = cb(args.type, index_n_labels, p = 0.5, qyu = qyu_train, 
+                                    N = 2*args.samples, qzy = args.qzy, 
+                                   qzu0 = args.qzu0, qzu1 = args.qzu1)
+    
     logger.info(f"sam: {args.samples}, epoch: {args.epochs}")
     
     train_type = args.data_type
@@ -167,15 +158,12 @@ if __name__ == "__main__":
     exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', patience=5, factor=0.1)
 
     ## load data of required kind using DataLoader and creating Dataclasses
-    if train_type == 'Conf': 
-        labels = labels_conf; labels_v = labels_conf_v
-        train_data = Camelyon(labels = labels)
-        valid_data = Camelyon(labels = labels_v)
-
+    if train_type in ['Conf', 'DA']: 
+        train_data = Camelyon(labels = labels_conf)
+        valid_data = Camelyon(labels = labels_conf_v)
     elif train_type == 'Deconf': 
-        labels = labels_deconf; labels_v = labels_deconf_v
-        train_data = Camelyon(labels = labels)
-        valid_data = Camelyon(labels = labels_v)
+        train_data = Camelyon(labels = labels_deconf)
+        valid_data = Camelyon(labels =  labels_deconf_v)        
 
     train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
@@ -245,10 +233,11 @@ if __name__ == "__main__":
 #     metrics = dict.fromkeys(key_results, None)
     metrics = {}
     
-    index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = 'camelyon')
+    index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = args.data)
 
     del(optimizer)
 
+    keylist_test = ['Unconf', 'Conf', 'Reverse']
     for test_type in keylist_test: 
         if test_type == 'Conf':
             qyu = args.corr_coff
@@ -256,24 +245,10 @@ if __name__ == "__main__":
             qyu = 0.5
         elif test_type == 'Reverse':
             qyu = 1- args.corr_coff
-                        
-        if args.type == 'back':  
-            labels_t, _ = cb_backdoor(index_n_labels_t,p=0.5,
-                                            qyu=qyu,N=2*args.samples)
-        elif args.type == 'front':
-            labels_t, _ = cb_frontdoor(index_n_labels_t,p=0.5,
-                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
-        elif args.type == 'back_front':
-            labels_t, _ = cb_front_n_back(index_n_labels_t,p=0.5,
-                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
-        elif args.type == 'par_back_front':
-            labels_t, _ = cb_par_front_n_back(index_n_labels_t,p=0.5,
-                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
-        elif args.type == 'label_flip':
-            labels_t, _ = cb_label_flip(index_n_labels_t,p=0.5,
-                                    qyu=qyu,qzu0= args.qzu0,qzu1=args.qzu1,
-                                    N=2*args.samples)
-
+        
+        labels_t, _ = cb(args.type, index_n_labels_t, p = 0.5, qyu = qyu, 
+                                    N = 2*args.samples, qzy = args.qzy, 
+                                   qzu0 = args.qzu0, qzu1 = args.qzu1)        
         test_data = Camelyon(labels = labels_t)
         test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True)
 
