@@ -24,7 +24,7 @@ from utils.checkpointing import save_checkpoint, has_checkpoint, load_checkpoint
 from utils.infinite_loader import StatefulSampler, InfiniteDataLoader
 
 # from bootstrap.bootstrap_add import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_par_front_n_back, cb_label_flip
-from bootstrap.bootstrap_wilds import cb_backdoor
+from bootstrap.bootstrap_wilds import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_label_flip
 # from model.ful_model import Conv_confemb
 
 ## Torch

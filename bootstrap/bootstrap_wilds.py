@@ -105,7 +105,7 @@ def cb_frontdoor(index_n_labels,p,qyu,qzy,N):
 
     yr = np.unique(Y); ur = np.unique(U); zr = np.unique(Z)
     ur_r = np.unique(U_all); yr_r = np.unique(Y_all)
-    la = pd.DataFrame(data={'Y':Y,'U':U})
+    la = pd.DataFrame(data={'Y':Y,'U':U,'Z':Z})
 
     Ns = []; Ns_real = []; idn = []; idx = []
     for y in yr:
@@ -160,14 +160,14 @@ def cb_frontdoor(index_n_labels,p,qyu,qzy,N):
     labels_deconf = np.array([filename_deconf, Y_deconf, U_deconf, Z_deconf]).transpose(1,0)
 
     ## sanity check (these distribustions should change suitabely for deconfounded data)
-    # Nyu,_,_ = np.histogram2d(Y,U,bins=[len(yr),len(ur)])
+    # Nyu,_,_ = np.histogram2d(Y_deconf,U_deconf,bins=[len(yr),len(ur)])
     # pyu_emp = Nyu/N 
     # pu_emp = np.sum(pyu_emp, axis=0)
     # py_emp = np.sum(pyu_emp, axis=1)
     # py_u_emp = np.transpose(pyu_emp)/py_emp 
 
-    # estimate f(z,y,u) to get f(z/y,u)  
-    # mat = np.array([Z,Y,U]).transpose(1,0)  
+    # ## estimate f(z,y,u) to get f(z/y,u)  
+    # mat = np.array([Z_deconf,Y_deconf,U_deconf]).transpose(1,0)  
     # H, [by, bu, bz]= np.histogramdd(mat,bins=[len(yr),len(ur),len(zr)])
     # iz, iy, iu = np.where(H)
     # pzyu_emp = H/N
@@ -176,6 +176,8 @@ def cb_frontdoor(index_n_labels,p,qyu,qzy,N):
     # py_emp = np.sum(np.sum(pzyu_emp, axis=2),axis=0)
     # pyu_emp = np.sum(pzyu_emp, axis=0)    
     # pz_yu_emp = pzyu_emp/np.expand_dims(pyu_emp, axis=0)
+
+    # pdb.set_trace()
     
     return labels_conf, labels_deconf
 
@@ -201,7 +203,7 @@ def cb_front_n_back(index_n_labels,p,qyu,qzy,N):
 
     yr = np.unique(Y); ur = np.unique(U); zr = np.unique(Z)
     ur_r = np.unique(U_all); yr_r = np.unique(Y_all)
-    la = pd.DataFrame(data={'Y':Y,'U':U})
+    la = pd.DataFrame(data={'Y':Y,'U':U,'Z':Z})
 
     Ns = []; Ns_real = []; idn = []; idx = []
     for y in yr:
@@ -245,7 +247,6 @@ def cb_front_n_back(index_n_labels,p,qyu,qzy,N):
                                                                 # 
         # print(sum(w))
         w = w/sum(w) ##  to renormalise 0.99999999976 
-   
         # Step 3: Resample Indices according to weight w 
         i_new = i_new + list(rand.choice(N,size=j.shape[0],replace=True,p=w))
         Y_new += [m]*j.shape[0]
@@ -259,14 +260,31 @@ def cb_front_n_back(index_n_labels,p,qyu,qzy,N):
     filename_conf = filename[idx]
     Y_conf = Y; Z_conf = Z; U_conf = U
     labels_conf = np.array([filename_conf, Y_conf, U_conf, Z_conf]).transpose(1,0)
-    # new_vals_conf = np.array([Y_conf, U_conf, Z_conf], dtype=int).transpose(1,0)
-
+    
     # unconfounded data 
     filename_deconf = filename[idx_new]
     Y_deconf = np.array(Y_new); Z_deconf = Z[i_new]; U_deconf = U[i_new]
     labels_deconf = np.array([filename_deconf, Y_deconf, U_deconf, Z_deconf]).transpose(1,0)
-    # new_vals_deconf = np.array([Y_deconf, U_deconf, Z_deconf], dtype=int).transpose(1,0)
     
+    ## sanity check (these distribustions should change suitabely for deconfounded data)
+    # Nyu,_,_ = np.histogram2d(Y_deconf,U_deconf,bins=[len(yr),len(ur)])
+    # pyu_emp = Nyu/N 
+    # pu_emp = np.sum(pyu_emp, axis=0)
+    # py_emp = np.sum(pyu_emp, axis=1)
+    # py_u_emp = np.transpose(pyu_emp)/py_emp 
+
+    # ## estimate f(z,y,u) to get f(z/y,u)  
+    # mat = np.array([Z_deconf,Y_deconf,U_deconf]).transpose(1,0)  
+    # H, [by, bu, bz]= np.histogramdd(mat,bins=[len(yr),len(ur),len(zr)])
+    # iz, iy, iu = np.where(H)
+    # pzyu_emp = H/N
+    # pu_emp = np.sum(np.sum(pzyu_emp, axis=0),axis=0)
+    # pz_emp = np.sum(np.sum(pzyu_emp, axis=2),axis=1)
+    # py_emp = np.sum(np.sum(pzyu_emp, axis=2),axis=0)
+    # pyu_emp = np.sum(pzyu_emp, axis=0)    
+    # pz_yu_emp = pzyu_emp/np.expand_dims(pyu_emp, axis=0)
+    # pdb.set_trace()
+
     return labels_conf, labels_deconf
 
 def cb_par_front_n_back(index_n_labels,p,qyu,qzy,N):
@@ -364,14 +382,14 @@ def cb_par_front_n_back(index_n_labels,p,qyu,qzy,N):
     
     return labels_conf, labels_deconf
 
-def cb_label_flip(index_n_labels,p,qyu,qdu0,qdu1,N): 
+def cb_label_flip(index_n_labels,p,qyu,qzu0,qzu1,N): 
     
     if qyu<0:
         pu_y = np.array([1+qyu, -qyu])
     else:    
         pu_y = np.array([qyu, 1-qyu])
 
-    pd_yu = np.array([[1-qdu0, 1-qdu1], [qdu0, qdu1]])
+    pd_yu = np.array([[qzu0, qzu1], [1-qzu0, 1-qzu1]])
 
     Y = rand.binomial(1,p,N)
     U = rand.binomial(1,pu_y[Y])    
@@ -385,7 +403,7 @@ def cb_label_flip(index_n_labels,p,qyu,qdu0,qdu1,N):
 
     yr = np.unique(Y); ur = np.unique(U); dr = np.unique(D)
     ur_r = np.unique(U_all); yr_r = np.unique(Y_all)
-    la = pd.DataFrame(data={'Y':Y,'U':U})
+    la = pd.DataFrame(data={'Y':Y,'U':U,'D':D})
 
     Ns = []; Ns_real = []; idn = []; idx = []
     for y in yr:
@@ -455,30 +473,32 @@ def cb_label_flip(index_n_labels,p,qyu,qdu0,qdu1,N):
     # py_u_emp_de = pyu_emp_de/pu_emp_de
     # print(f"deconf correlations p(Y/U)\n: {py_u_emp_de}")
 
-    # mat_de = np.array([Z_deconf,Y_deconf,U_deconf]).transpose(1,0)  
-    # H_de, [by, bu, bz]= np.histogramdd(mat_de,bins=[len(yr),len(ur),len(zr)])
-    # iz, iy, iu = np.where(H_de)
-    # pzyu_emp_de = H_de/N
-    # pu_emp_de = np.sum(np.sum(pzyu_emp_de, axis=0),axis=0)
-    # pz_emp_de = np.sum(np.sum(pzyu_emp_de, axis=2),axis=1)
-    # py_emp_de = np.sum(np.sum(pzyu_emp_de, axis=2),axis=0)
-    # pyu_emp_de = np.sum(pzyu_emp_de, axis=0)    
-    # pz_yu_emp_de = pzyu_emp_de/np.expand_dims(pyu_emp_de, axis=0)
-    # print(f"deconf correlations p(Z/Y,U)\n: {pz_yu_emp_de}")
+    # mat_de = np.array([D_deconf,Y_deconf,U_deconf]).transpose(1,0)  
+    # H_de, [by, bu, bd]= np.histogramdd(mat_de,bins=[len(yr),len(ur),len(dr)])
+    # idd, iy, iu = np.where(H_de)
+    # pdyu_emp_de = H_de/N
+    # pu_emp_de = np.sum(np.sum(pdyu_emp_de, axis=0),axis=0)
+    # pd_emp_de = np.sum(np.sum(pdyu_emp_de, axis=2),axis=1)
+    # py_emp_de = np.sum(np.sum(pdyu_emp_de, axis=2),axis=0)
+    # pyu_emp_de = np.sum(pdyu_emp_de, axis=0)    
+    # pd_yu_emp_de = pdyu_emp_de/np.expand_dims(pyu_emp_de, axis=0)
+    # print(f"deconf correlations p(D/Y,U)\n: {pd_yu_emp_de}")
 
-    # Nyz,_,_ = np.histogram2d(Y,Z,bins=[len(yr),len(zr)])
+    # Nyz,_,_ = np.histogram2d(Y,D,bins=[len(yr),len(dr)])
     # pyz_emp = Nyz/N 
     # pz_emp = np.sum(pyz_emp, axis=0)
     # py_emp = np.sum(pyz_emp, axis=1)
     # pz_y_emp = np.transpose(pyz_emp)/py_emp 
-    # print(f"conf corr p(Z/Y)\n: {pz_y_emp}")
+    # print(f"conf corr p(D/Y)\n: {pz_y_emp}")
 
-    # Nyz_de,_,_ = np.histogram2d(Y_deconf,Z_deconf,bins=[len(yr),len(zr)])
+    # Nyz_de,_,_ = np.histogram2d(Y_deconf,D_deconf,bins=[len(yr),len(dr)])
     # pyz_emp_de = Nyz_de/N 
     # pz_emp_de = np.sum(pyz_emp_de, axis=0)
     # py_emp_de = np.sum(pyz_emp_de, axis=1)
     # pz_y_emp_de = np.transpose(pyz_emp_de)/py_emp_de 
-    # print(f"conf corr p(Z/Y)\n: {pz_y_emp_de}")
+    # print(f"deconf corr p(D/Y)\n: {pz_y_emp_de}")
+
+    # import pdb; pdb.set_trace()
 
     return labels_conf, labels_deconf
 
