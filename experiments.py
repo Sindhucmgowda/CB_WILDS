@@ -46,10 +46,11 @@ class Camelyon1:
     @staticmethod
     def hparams():
         grid = {
+           'type': ['back'],
            'data': ['camelyon'],
            'data_type': ['Conf', 'Deconf'],
            'domains': ((2, 3), (2, 4)),           
-           'qzy': list(np.linspace(0.65, 0.95, 4)),
+           'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
         }
         

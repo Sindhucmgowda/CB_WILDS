@@ -43,7 +43,7 @@ print(run_name)
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description='Causal Bootstrapping')
-    parser.add_argument('--type','-t', type = str, default='back',required = False)
+    parser.add_argument('--type','-t', type = str, choices = ['back'], required = True)
     parser.add_argument('--samples','-N', type = int, default=4000,required = False)
     parser.add_argument('--no-cuda','-g', action='store_true', default=False,
                         help='disables CUDA training')
@@ -57,8 +57,8 @@ if __name__ == "__main__":
     # parser.add_argument('--conf-type','-ct',type=str, required=True, default='rot')
     # parser.add_argument('--conf-val','-cv', type=float, required=False, default=0.5)
     
-    parser.add_argument('--qzy',type=float, required=False, default=0.95)
-    parser.add_argument('--corr-coff','-q', type=float, required=False, default=0.95) # unused for backdoor    
+    parser.add_argument('--corr-coff','-q', type=float, required=False, default=0.95)    
+    parser.add_argument('--qzy',type=float, required=False, default=0.95)    # unused for backdoor
     parser.add_argument('--qzu0',type=float, required=False, default=0.80) 
     parser.add_argument('--qzu1',type=float, required=False, default=0.95)
 
@@ -182,7 +182,6 @@ if __name__ == "__main__":
     
     es = EarlyStopping(patience = args.es_patience)             
     n_steps = args.epochs * (len(train_data) // batch_size)    
-    # n_steps = 30
     
     if has_checkpoint():
         state = load_checkpoint()
@@ -263,13 +262,13 @@ if __name__ == "__main__":
                                             qyu=qyu,N=2*args.samples)
         elif args.type == 'front':
             labels_t, _ = cb_frontdoor(index_n_labels_t,p=0.5,
-                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
         elif args.type == 'back_front':
             labels_t, _ = cb_front_n_back(index_n_labels_t,p=0.5,
-                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
         elif args.type == 'par_back_front':
             labels_t, _ = cb_par_front_n_back(index_n_labels_t,p=0.5,
-                                            qyu=args.corr_coff,qzy=args.qzy,N=2*args.samples)
+                                            qyu=qyu,qzy=args.qzy,N=2*args.samples)
         elif args.type == 'label_flip':
             labels_t, _ = cb_label_flip(index_n_labels_t,p=0.5,
                                     qyu=qyu,qzu0= args.qzu0,qzu1=args.qzu1,
