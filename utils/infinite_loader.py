@@ -62,7 +62,7 @@ class _InfiniteSampler(torch.utils.data.Sampler):
                 yield batch
 
 class InfiniteDataLoader:
-    def __init__(self, dataset,  batch_size, num_workers):
+    def __init__(self, dataset, batch_size, num_workers):
         super().__init__()
         self.sampler = StatefulSampler(dataset, shuffle = True)
     

@@ -15,7 +15,8 @@ import json
 import Constants
 
 # from data.data_camelyon import Camelyon17Dataset
-from data.data_cam import Camelyon, split_train_test, split_n_label, transform   
+from data.data_cam import Camelyon, split_train_test, split_n_label, transform  
+from data import data_cxr
 from utils.logging import setup_logs
 from src.training import train_step, snapshot, train_helper
 from src.validation import validation, validation_helper 
@@ -74,7 +75,7 @@ def cb(conf_type, index_n_labels, p, qyu, N, qzy = None, qzu0 = None, qzu1 = Non
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description='Causal Bootstrapping')
     parser.add_argument('--type','-t', type = str, choices = ['back', 'front', 'back_front', 'label_flip'], required = True)
-    parser.add_argument('--samples','-N', type = int, default=4000,required = False)
+    parser.add_argument('--samples','-N', type = int, default=8000,required = False)
     parser.add_argument('--no-cuda','-g', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--output_dir','-l', type=str, required=True)
@@ -92,9 +93,9 @@ if __name__ == "__main__":
     parser.add_argument('--qzu0',type=float, required=False, default=0.80) 
     parser.add_argument('--qzu1',type=float, required=False, default=0.95)
 
-    parser.add_argument('--data','-d', type=str, default= 'camelyon', required=False)
+    parser.add_argument('--data','-d', type=str, choices = ['camelyon', 'CXR'])
     parser.add_argument('--domains','-do', nargs = '+', type = int, default=[2,3], required=False)
-    parser.add_argument('--batch-size','-b', type=int, default=64, required=False)
+    parser.add_argument('--batch-size','-b', type=int, default=32, required=False)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--es_patience', type=int, default=10) # *val_freq steps
@@ -129,7 +130,12 @@ if __name__ == "__main__":
     batch_size = args.batch_size
 
     # Training samples (confounding and deconfounding)
-    index_n_labels = split_n_label(split = 'train', domains = args.domains, data = args.data)
+    if args.data == 'camelyon':
+        index_n_labels = split_n_label(split = 'train', domains = args.domains, data = args.data)
+    elif args.data == 'CXR':
+        df = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'train')
+        index_n_labels = data_cxr.prepare_df_for_cb(df)
+    
     # slightly wasting compute for DA since trained models will be the same for all corr_coff
     qyu_train = 0.5 if args.type == 'DA' else args.corr_coff 
     
@@ -138,9 +144,14 @@ if __name__ == "__main__":
                                    qzu0 = args.qzu0, qzu1 = args.qzu1)
     
     # Validation samples (confounding and deconfounding1)
-    index_n_labels_v = split_n_label(split = 'valid', domains = args.domains, data = args.data)    
-    labels_conf_v, labels_deconf_v = cb(args.type, index_n_labels, p = 0.5, qyu = qyu_train, 
-                                    N = 2*args.samples, qzy = args.qzy, 
+    if args.data == 'camelyon':
+        index_n_labels_v = split_n_label(split = 'valid', domains = args.domains, data = args.data)  
+    elif args.data == 'CXR':
+        df_v = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'val')
+        index_n_labels_v = data_cxr.prepare_df_for_cb(df_v)
+         
+    labels_conf_v, labels_deconf_v = cb(args.type, index_n_labels_v, p = 0.5, qyu = qyu_train, 
+                                    N = args.samples, qzy = args.qzy, 
                                    qzu0 = args.qzu0, qzu1 = args.qzu1)
     
     logger.info(f"sam: {args.samples}, epoch: {args.epochs}")
@@ -158,19 +169,27 @@ if __name__ == "__main__":
     exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', patience=5, factor=0.1)
 
     ## load data of required kind using DataLoader and creating Dataclasses
-    if train_type in ['Conf', 'DA']: 
-        train_data = Camelyon(labels = labels_conf)
-        valid_data = Camelyon(labels = labels_conf_v)
-    elif train_type == 'Deconf': 
-        train_data = Camelyon(labels = labels_deconf)
-        valid_data = Camelyon(labels =  labels_deconf_v)        
-
+    if args.data == 'camelyon':
+        if train_type in ['Conf', 'DA']: 
+            train_data = Camelyon(labels = labels_conf)
+            valid_data = Camelyon(labels = labels_conf_v)
+        elif train_type == 'Deconf': 
+            train_data = Camelyon(labels = labels_deconf)
+            valid_data = Camelyon(labels =  labels_deconf_v)      
+    elif args.data == 'CXR':
+        if train_type in ['Conf', 'DA']: 
+            train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train')
+            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_conf_v, split = 'val')
+        elif train_type == 'Deconf': 
+            train_data = data_cxr.dataset_from_cb_output(df, labels_deconf, split = 'train')
+            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_deconf_v, split = 'val')
+        
     train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
     
     es = EarlyStopping(patience = args.es_patience)             
-    n_steps = args.epochs * (len(train_data) // batch_size)    
-    
+    n_steps = args.epochs * (len(train_data) // batch_size)  
+        
     if has_checkpoint():
         state = load_checkpoint()
         model_conv.load_state_dict(state['model_dict'])
@@ -183,8 +202,9 @@ if __name__ == "__main__":
         print("Loaded checkpoint at step %s" % start_step)
     else:
         start_step = 0          
-    
+        
     tr_losses, tr_accs = [], []
+    n_steps = 30
     for step in range(start_step, n_steps):    
         if es.early_stop:
             break               
@@ -233,23 +253,44 @@ if __name__ == "__main__":
 #     metrics = dict.fromkeys(key_results, None)
     metrics = {}
     
-    index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = args.data)
-
+    
+    if args.data == 'camelyon':
+        index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = args.data)
+        index_n_labels_t_real = split_n_label(split = 'test', domains = [4], data = args.data)
+    elif args.data == 'CXR':
+        df = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'test')
+        index_n_labels_t = data_cxr.prepare_df_for_cb(df)
+        
+        df_real = data_cxr.get_dfs(envs = ['NIH'], split = 'test')
+        
+    labels_t_real = index_n_labels_t_real.to_numpy()
+        
     del(optimizer)
 
-    keylist_test = ['Unconf', 'Conf', 'Reverse']
+    keylist_test = ['Unconf', 'Conf', 'Reverse', 'Real']
     for test_type in keylist_test: 
-        if test_type == 'Conf':
-            qyu = args.corr_coff
-        elif test_type == 'Unconf':
-            qyu = 0.5
-        elif test_type == 'Reverse':
-            qyu = 1- args.corr_coff
+        if test_type == 'Real':
+            if args.data == 'camelyon':
+                test_data = Camelyon(labels = labels_t_real)
+            elif args.data == 'CXR':   
+                test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test')
+        else:
+            if test_type == 'Conf':
+                qyu = args.corr_coff
+            elif test_type == 'Unconf':
+                qyu = 0.5
+            elif test_type == 'Reverse':
+                qyu = 1- args.corr_coff
+
+            labels_t, _ = cb(args.type, index_n_labels_t, p = 0.5, qyu = qyu, 
+                                        N = args.samples, qzy = args.qzy, 
+                                       qzu0 = args.qzu0, qzu1 = args.qzu1)    
+
+            if args.data == 'camelyon':
+                test_data = Camelyon(labels = labels_t)
+            elif args.data == 'CXR':   
+                test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test')
         
-        labels_t, _ = cb(args.type, index_n_labels_t, p = 0.5, qyu = qyu, 
-                                    N = 2*args.samples, qzy = args.qzy, 
-                                   qzu0 = args.qzu0, qzu1 = args.qzu1)        
-        test_data = Camelyon(labels = labels_t)
         test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True)
 
         logger.info(f'===> loading best model {train_type} for prediction')
