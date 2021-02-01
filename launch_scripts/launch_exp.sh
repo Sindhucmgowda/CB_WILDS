@@ -5,7 +5,7 @@ cd ../
 
 echo "Running experiment:" "${1}"
 
-slurm_pre="--partition t4v2,p100,t4v1,rtx6000 --gres gpu:1 --mem 40gb -c 4 --job-name ${1} --output /scratch/ssd001/home/haoran/projects/CB_WILDS/slurm_logs/${1}_%A.log"
+slurm_pre="--partition t4v2,t4v1 --gres gpu:1 --mem 40gb -c 4 --job-name ${1} --output /scratch/ssd001/home/haoran/projects/CB_WILDS/slurm_logs/${1}_%A.log"
 
 python sweep.py launch \
     --experiment ${1} \

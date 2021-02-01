@@ -46,12 +46,26 @@ class Camelyon1:
     @staticmethod
     def hparams():
         grid = {
-           'type': ['back'],
+           'type': ['back', 'front', 'back_front', 'label_flip'],
            'data': ['camelyon'],
-           'data_type': ['Conf', 'Deconf'],
-           'domains': ((2, 3), (2, 4)),           
+           'data_type': ['Conf', 'Deconf', 'DA'],
+           'domains': ((2, 3),),           
            'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
+        }
+        
+        return combinations(grid)
+
+class CXR1:
+    @staticmethod
+    def hparams():
+        grid = {
+           'type': ['back', 'front', 'back_front', 'label_flip'],
+           'data': ['CXR'],
+           'data_type': ['Conf', 'Deconf', 'DA'],       
+           'corr-coff': list(np.linspace(0.65, 0.95, 4)),
+           'seed': list(range(5)),
+           '': ['--use_pretrained'] 
         }
         
         return combinations(grid)
