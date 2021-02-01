@@ -25,7 +25,6 @@ def get_dfs(envs = [], split = None, only_frontal = False):
         
     return pd.concat(dfs, ignore_index = True, sort = False).sample(frac=1) #shuffle        
         
-
 def prepare_df_for_cb(df, positive_env = 'CXP'):
     df2 = df.copy()
     df2 = df2.rename(columns = {'path': 'filename', 'Atelectasis': 'label', 'env': 'conf'})
@@ -33,15 +32,18 @@ def prepare_df_for_cb(df, positive_env = 'CXP'):
     df2['label'] = (df2['label']).astype(int)
     return df2
     
-def dataset_from_cb_output(orig_df, labels_gen, split, envs = ['MIMIC', 'CXP']):
+def dataset_from_cb_output(orig_df, labels_gen, split):
     '''
     massages output from labels_gen (which is only filename, label, conf) into a more informative
         dataframe format to allow for generalized caching in dataloader    
     '''
+    envs = orig_df.env.unique()
     augmented_dfs = {i: {} for i in envs}
+    temp = orig_df.set_index('path').loc[labels_gen[:, 0], :].reset_index()
     for i in envs:
-        assert(len(np.unique(labels_gen[:, 0])) == len(labels_gen))
-        augmented_dfs[i][split] = orig_df[(orig_df.path.isin(labels_gen[:, 0])) & (orig_df.env == i)]    
+        # assert(len(np.unique(labels_gen[:, 0])) == len(labels_gen)) #  this should give error for deconf
+        # augmented_dfs[i][split] = orig_df[(orig_df.path.isin(labels_gen[:, 0])) & (orig_df.env == i)] 
+        augmented_dfs[i][split] = temp[(temp.env == i)]   
     
     dataset = get_dataset(envs, split, only_frontal = False, imagenet_norm = True, augment = 1 if split == 'train' else 0, 
                cache = True, subset_label = 'Atelectasis', augmented_dfs = augmented_dfs)    

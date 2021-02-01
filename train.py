@@ -95,12 +95,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--data','-d', type=str, choices = ['camelyon', 'CXR'])
     parser.add_argument('--domains','-do', nargs = '+', type = int, default=[2,3], required=False)
-    parser.add_argument('--batch-size','-b', type=int, default=32, required=False)
+    parser.add_argument('--batch-size','-b', type=int, default=64, required=False)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--es_patience', type=int, default=10) # *val_freq steps
-    parser.add_argument('--val_freq', type=int, default=100)
+    parser.add_argument('--es_patience', type=int, default=7) # *val_freq steps
+    parser.add_argument('--val_freq', type=int, default=200)
     parser.add_argument('--use_pretrained', action = 'store_true')
+    parser.add_argument('--debug', action = 'store_true')
 
     args = parser.parse_args()
     
@@ -187,8 +188,11 @@ if __name__ == "__main__":
     train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
     
-    es = EarlyStopping(patience = args.es_patience)             
-    n_steps = args.epochs * (len(train_data) // batch_size)  
+    es = EarlyStopping(patience = args.es_patience)     
+    if args.debug:
+        n_steps = 50
+    else:
+        n_steps = args.epochs * (len(train_data) // batch_size)  
         
     if has_checkpoint():
         state = load_checkpoint()
@@ -204,7 +208,6 @@ if __name__ == "__main__":
         start_step = 0          
         
     tr_losses, tr_accs = [], []
-    n_steps = 30
     for step in range(start_step, n_steps):    
         if es.early_stop:
             break               
@@ -253,7 +256,6 @@ if __name__ == "__main__":
 #     metrics = dict.fromkeys(key_results, None)
     metrics = {}
     
-    
     if args.data == 'camelyon':
         index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = args.data)
         index_n_labels_t_real = split_n_label(split = 'test', domains = [4], data = args.data)
@@ -262,6 +264,7 @@ if __name__ == "__main__":
         index_n_labels_t = data_cxr.prepare_df_for_cb(df)
         
         df_real = data_cxr.get_dfs(envs = ['NIH'], split = 'test')
+        index_n_labels_t_real = data_cxr.prepare_df_for_cb(df_real)[['filename', 'label', 'conf']]
         
     labels_t_real = index_n_labels_t_real.to_numpy()
         
