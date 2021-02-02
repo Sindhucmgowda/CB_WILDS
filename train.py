@@ -138,7 +138,7 @@ if __name__ == "__main__":
         index_n_labels = data_cxr.prepare_df_for_cb(df)
     
     # slightly wasting compute for DA since trained models will be the same for all corr_coff
-    qyu_train = 0.5 if args.type == 'DA' else args.corr_coff 
+    qyu_train = 0.5 if args.data_type == 'DA' else args.corr_coff 
     
     labels_conf, labels_deconf = cb(args.type, index_n_labels, p = 0.5, qyu = qyu_train, 
                                     N = Constants.train_N[args.data], qzy = args.qzy, 

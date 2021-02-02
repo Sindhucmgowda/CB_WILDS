@@ -62,10 +62,12 @@ class CXR1:
         grid = {
            'type': ['back', 'front', 'back_front', 'label_flip'],
            'data': ['CXR'],
-           'data_type': ['Conf', 'Deconf', 'DA'],       
+           'data_type': ['Conf', 'Deconf', 'DA'],    
            'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
+           'samples': [6500],
            '': ['--use_pretrained'] 
         }
         
         return combinations(grid)
+

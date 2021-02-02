@@ -35,7 +35,12 @@ class Job:
                 v = ' '.join([str(v_) for v_ in v])
             elif isinstance(v, str):
                 v = shlex.quote(v)
-            command.append(f'--{k} {v}')
+                
+            if k: 
+                command.append(f'--{k} {v}')
+            else: # for example, --use_pretrained
+                command.append(f'{v}')
+                
         self.command_str = ' '.join(command)
         self.command_str = f'sbatch {slurm_pre} --wrap "{self.command_str}"' 
         
