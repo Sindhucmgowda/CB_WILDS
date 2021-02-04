@@ -18,16 +18,15 @@ import Constants
 from data.data_cam import Camelyon, split_train_test, split_n_label, transform  
 from data import data_cxr
 from utils.logging import setup_logs
-from src.training import train_step, snapshot, train_helper
-from src.validation import validation, validation_helper 
-from src.prediction import prediction_analysis, prediction_analysis_helper
+from src.training import train_step
+from src.validation import validation 
+from src.prediction import prediction_analysis
 from utils.early_stopping import EarlyStopping 
 from utils.checkpointing import save_checkpoint, has_checkpoint, load_checkpoint
 from utils.infinite_loader import StatefulSampler, InfiniteDataLoader
 
-# from bootstrap.bootstrap_add import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_par_front_n_back, cb_label_flip
 from bootstrap.bootstrap_wilds import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_label_flip
-# from model.ful_model import Conv_confemb
+from model import models
 
 ## Torch
 import torch
@@ -83,7 +82,7 @@ if __name__ == "__main__":
     parser.add_argument('--log-interval','-i', type=int, required=False, default=1)
     parser.add_argument('--epochs','-e', type=int, required=False, default=15)
     
-    parser.add_argument('--data_type', choices = ['Conf', 'Deconf', 'DA'], required = True)
+    parser.add_argument('--data_type', choices = ['Conf', 'Deconf', 'DA', 'IF'], required = True)
 
     # parser.add_argument('--conf-type','-ct',type=str, required=True, default='rot')
     # parser.add_argument('--conf-val','-cv', type=float, required=False, default=0.5)
@@ -160,10 +159,7 @@ if __name__ == "__main__":
     train_type = args.data_type
         
     # Defining the Convolutional model 
-    model_conv = mod.densenet121(pretrained=args.use_pretrained) 
-    num_ftrs = model_conv.classifier.in_features
-    model_conv.classifier = nn.Linear(num_ftrs, 2)
-    model_conv = model_conv.to(device)
+    model_conv = models.get_model(args.type, args.data_type, args.use_pretrained).to(device)
 
     # optimizer 
     optimizer = optim.Adam(model_conv.parameters(), lr = args.lr)         
@@ -171,19 +167,23 @@ if __name__ == "__main__":
 
     ## load data of required kind using DataLoader and creating Dataclasses
     if args.data == 'camelyon':
-        if train_type in ['Conf', 'DA']: 
-            train_data = Camelyon(labels = labels_conf)
-            valid_data = Camelyon(labels = labels_conf_v)
+        if train_type in ['Conf', 'DA', 'IF']: 
+            train_data = Camelyon(labels = labels_conf, causal_type = args.type, data_type = args.data_type)
+            valid_data = Camelyon(labels = labels_conf_v, causal_type = args.type, data_type = args.data_type)
         elif train_type == 'Deconf': 
-            train_data = Camelyon(labels = labels_deconf)
-            valid_data = Camelyon(labels =  labels_deconf_v)      
+            train_data = Camelyon(labels = labels_deconf, causal_type = args.type, data_type = args.data_type)
+            valid_data = Camelyon(labels =  labels_deconf_v, causal_type = args.type, data_type = args.data_type)      
     elif args.data == 'CXR':
-        if train_type in ['Conf', 'DA']: 
-            train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train')
-            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_conf_v, split = 'val')
+        if train_type in ['Conf', 'DA', 'IF']: 
+            train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train', 
+                                                         causal_type = args.type, data_type = args.data_type)
+            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_conf_v, split = 'val', 
+                                                         causal_type = args.type, data_type = args.data_type)
         elif train_type == 'Deconf': 
-            train_data = data_cxr.dataset_from_cb_output(df, labels_deconf, split = 'train')
-            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_deconf_v, split = 'val')
+            train_data = data_cxr.dataset_from_cb_output(df, labels_deconf, split = 'train', 
+                                                         causal_type = args.type, data_type = args.data_type)
+            valid_data = data_cxr.dataset_from_cb_output(df_v, labels_deconf_v, split = 'val', 
+                                                         causal_type = args.type, data_type = args.data_type)
         
     train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
@@ -211,12 +211,12 @@ if __name__ == "__main__":
     for step in range(start_step, n_steps):    
         if es.early_stop:
             break               
-        data, target, _ = next(iter(train_loader))
+        data, target, extras = next(iter(train_loader))
        
         start_timer = timer()
 
         # Train and validate
-        step_loss, step_acc = train_step(data, target, args, model_conv, writer, 
+        step_loss, step_acc = train_step(data, target, extras, args, model_conv, writer, 
                                      device, optimizer, batch_size) 
         
         end_timer = timer()
@@ -270,13 +270,17 @@ if __name__ == "__main__":
         
     del(optimizer)
 
-    keylist_test = ['Unconf', 'Conf', 'Reverse', 'Real']
+    keylist_test = ['Unconf', 'Conf', 'Reverse']
+    if args.data_type != 'IF':
+        keylist_test.append('Real')
+    
     for test_type in keylist_test: 
         if test_type == 'Real':
             if args.data == 'camelyon':
-                test_data = Camelyon(labels = labels_t_real)
+                test_data = Camelyon(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
-                test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test')
+                test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test', 
+                                                            causal_type = args.type, data_type = args.data_type)
         else:
             if test_type == 'Conf':
                 qyu = args.corr_coff
@@ -290,9 +294,10 @@ if __name__ == "__main__":
                                        qzu0 = args.qzu0, qzu1 = args.qzu1)    
 
             if args.data == 'camelyon':
-                test_data = Camelyon(labels = labels_t)
+                test_data = Camelyon(labels = labels_t, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
-                test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test')
+                test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test', 
+                                                            causal_type = args.type, data_type = args.data_type)
         
         test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True)
 

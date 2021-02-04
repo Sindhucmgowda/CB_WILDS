@@ -22,14 +22,14 @@ class Job:
     INCOMPLETE = 'Incomplete'
     DONE = 'Done'
 
-    def __init__(self, train_args, sweep_output_dir, slurm_pre):
+    def __init__(self, train_args, sweep_output_dir, slurm_pre, script_name):
         args_str = json.dumps(train_args, sort_keys=True)
         args_hash = hashlib.md5(args_str.encode('utf-8')).hexdigest()
         self.output_dir = os.path.join(sweep_output_dir, args_hash)
 
         self.train_args = copy.deepcopy(train_args)
         self.train_args['output_dir'] = self.output_dir
-        command = ['python', 'train.py']
+        command = ['python', script_name]
         for k, v in sorted(self.train_args.items()):
             if isinstance(v, (list, tuple)):
                 v = ' '.join([str(v_) for v_ in v])
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     args = parser.parse_args()        
     
     args_list = make_args_list(args.experiment)
-    jobs = [Job(train_args, args.output_dir, args.slurm_pre) for train_args in args_list]
+    jobs = [Job(train_args, args.output_dir, args.slurm_pre, experiments.get_script_name(args.experiment)) for train_args in args_list]
     
     for job in jobs:
         print(job)

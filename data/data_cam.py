@@ -53,11 +53,11 @@ def transform(x):
     return trans(x)
 
 class Camelyon(Dataset):    
-    def __init__(self, labels, cache = False):        
+    def __init__(self, labels, causal_type, data_type):        
         self.labels = labels
         self.img_pth = Constants.camelyon_path
-        self.cache_dir = Constants.camelyon_cache_dir
-        self.cache = cache
+        self.causal_type = causal_type
+        self.data_type = data_type
         
     def __len__(self):
         return len(self.labels)
@@ -71,22 +71,19 @@ class Camelyon(Dataset):
 
     def __getitem__(self, idx):
         img_idx = self.labels[idx][0]
-        cache_path = self.get_cache_path(self.cache_dir, img_idx)
-        if self.cache and cache_path.is_file():
-            img = torch.load(cache_path.open('rb'))
-        else:
-            img = self.load_img(img_idx)
-            if self.cache:
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                torch.save(img, cache_path.open('wb'))
-                
+        img = self.load_img(img_idx)                
         lab = torch.tensor(int(self.labels[idx][1]))
-        conf = int(self.labels[idx][2])    
         
-        return img, lab, conf  
-    
-    def get_cache_path(self, cache_dir, img_idx):
-        return (Path(cache_dir)/img_idx).with_suffix('.pt')
+        if self.data_type == 'IF':
+            if self.causal_type == 'back':
+                extras = np.array([float(self.labels[idx][2])])
+            else:
+                extras = np.array([float(self.labels[idx][2]), float(self.labels[idx][3])])
+        else:
+            extras = np.array([])
+        
+        return img, lab, extras
+
 
 ## loading and splitting metadata according to convinience
 def split_n_label(split, domains, data = 'camelyon', root_dir=Constants.wilds_root_dir):

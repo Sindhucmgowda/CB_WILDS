@@ -39,16 +39,24 @@ def get_hparams(experiment):
     if experiment not in globals():
         raise NotImplementedError
     return globals()[experiment].hparams()    
+
+
+def get_script_name(experiment):
+    if experiment not in globals():
+        raise NotImplementedError
+    return globals()[experiment].fname
  
     
 #### write experiments here    
 class Camelyon1:
+    fname = 'train.py'
+    
     @staticmethod
     def hparams():
         grid = {
            'type': ['back', 'front', 'back_front', 'label_flip'],
            'data': ['camelyon'],
-           'data_type': ['Conf', 'Deconf', 'DA'],
+           'data_type': ['Conf', 'Deconf', 'DA', 'IF'],
            'domains': ((2, 3),),           
            'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
@@ -57,12 +65,14 @@ class Camelyon1:
         return combinations(grid)
 
 class CXR1:
+    fname = 'train.py'
+    
     @staticmethod
     def hparams():
         grid = {
            'type': ['back', 'front', 'back_front', 'label_flip'],
            'data': ['CXR'],
-           'data_type': ['Conf', 'Deconf', 'DA'],    
+           'data_type': ['Conf', 'Deconf', 'DA', 'IF'],    
            'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
            'samples': [6500],

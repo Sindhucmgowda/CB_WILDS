@@ -8,18 +8,17 @@ logger = logging.getLogger("causal_bootstrap")
 def cost_fn(out, tar, weighting):
     return F.cross_entropy(out, tar, weight=weighting)
 
-def train_step(data, target, args, model, writer, device, optimizer, batch_size):
+def train_step(data, target, extras, args, model, writer, device, optimizer, batch_size):
     model.train() 
     
     data = data.float().to(device) # add channel dimension
     target = target.long().to(device)
-
     target = target.view((-1))
+    
+    if torch.is_tensor(extras):
+        extras = extras.float().to(device)
 
-    if args.data == "MNIST_deep":
-        data = data.reshape(data.shape[0],-1)
-
-    output = model(data) ## no softmax applied 
+    output = model(data, extras) ## no softmax applied 
 
     if args.data == "NIH" or args.data == "MIMIC": 
         weights = torch.tensor([0.1,0.9], dtype = torch.float).to(device) 
@@ -51,8 +50,8 @@ def train(args, model, writer, device, train_loader, optimizer, epoch, batch_siz
 
     offset = len(train_loader) * (epoch-1)
     
-    for batch_idx, [data, target, _ ] in enumerate(train_loader):        
-        step_loss, step_acc = train_step(data, target, args, model, writer, device, optimizer, batch_size)
+    for batch_idx, [data, target, extras ] in enumerate(train_loader):        
+        step_loss, step_acc = train_step(data, target, extras, args, model, writer, device, optimizer, batch_size)
 
         epoch_loss += step_loss
         epoch_acc += step_acc

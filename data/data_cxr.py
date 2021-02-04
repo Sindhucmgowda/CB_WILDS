@@ -32,23 +32,25 @@ def prepare_df_for_cb(df, positive_env = 'CXP'):
     df2['label'] = (df2['label']).astype(int)
     return df2
     
-def dataset_from_cb_output(orig_df, labels_gen, split):
+def dataset_from_cb_output(orig_df, labels_gen, split, causal_type, data_type):
     '''
     massages output from labels_gen (which is only filename, label, conf) into a more informative
         dataframe format to allow for generalized caching in dataloader    
     '''
     envs = orig_df.env.unique()
-    augmented_dfs = {i: {} for i in envs}
+    augmented_dfs, labels_env = {i: {} for i in envs}, []
     temp = orig_df.set_index('path').loc[labels_gen[:, 0], :].reset_index()
     for i in envs:
         # assert(len(np.unique(labels_gen[:, 0])) == len(labels_gen)) #  this should give error for deconf
         # augmented_dfs[i][split] = orig_df[(orig_df.path.isin(labels_gen[:, 0])) & (orig_df.env == i)] 
-        augmented_dfs[i][split] = temp[(temp.env == i)]   
+        subset = (temp.env == i)
+        augmented_dfs[i][split] = temp[subset]   
+        labels_env.append(labels_gen[subset, :])
     
     dataset = get_dataset(envs, split, only_frontal = False, imagenet_norm = True, augment = 1 if split == 'train' else 0, 
-               cache = True, subset_label = 'Atelectasis', augmented_dfs = augmented_dfs)    
+               cache = True, subset_label = 'Atelectasis', augmented_dfs = augmented_dfs)
     
-    return dataset
+    return CXRWrapper(dataset, np.concatenate(labels_env), causal_type, data_type)
     
 def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = True, augment = 0, cache = True, subset_label = None,
                augmented_dfs = None):
@@ -100,6 +102,45 @@ def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = T
     
     return ds
 
+
+class CXRWrapper(Dataset):
+    '''    
+    Wraps a AllDatasetsShared object and a generated labels array from cb to return (x, y, extras)
+      where the size of extras depends on the confounding and data types
+    '''
+    def __init__(self, ds, labels, causal_type, data_type):
+        super().__init__()
+        self.ds = ds
+        self.labels = labels
+        self.causal_type = causal_type
+        self.data_type = data_type
+       
+    def get_img_id(self, path, env):
+        path = Path(path)
+        if env in ['PAD', 'NIH']:
+            return path.stem
+        elif env in ['MIMIC', 'CXP']:
+            return  '_'.join(path.parts[-3:])        
+    
+    def check_id(self, p1, p2, env):
+        return self.get_img_id(p1, env) == self.get_img_id(p2, env)    
+        
+    def __len__(self):
+        return len(self.ds)
+    
+    def __getitem__(self, idx):        
+        x, y, meta = self.ds[idx]
+        lst_info = self.labels[idx]
+        assert self.check_id(lst_info[0], meta['path'], meta['env'])
+        if self.data_type == 'IF':
+            if self.causal_type == 'back':
+                extras = np.array([float(lst_info[2])])
+            else:
+                extras = np.array([float(lst_info[2]), float(lst_info[3])])
+        else:
+            extras = np.array([])
+            
+        return x, y, extras
 
 class AllDatasetsShared(Dataset):
     def __init__(self, dataframe, transform=None, split = None, cache = True, cache_dir = '', subset_label = None):
