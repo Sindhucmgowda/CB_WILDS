@@ -1,12 +1,21 @@
 from pathlib import Path
+import pandas as pd
+import numpy as np
+
+wilds_datasets = ['camelyon', 'poverty']
 
 wilds_root_dir = Path('/scratch/ssd001/home/haoran/wilds/')
 camelyon_path = wilds_root_dir / 'camelyon/camelyon17_v1.0/'
+poverty_path = wilds_root_dir / 'poverty_v1.0'
 
 train_N = {
     'camelyon': 15*4700,
-    'CXR': 15*4700
+    'CXR': 15*4700,
+    'poverty': 1500
 }
+
+
+## CXR
 
 df_paths = {
     'MIMIC': {
@@ -45,4 +54,5 @@ cache_dir = '/scratch/ssd001/home/haoran/projects/IRM_Clinical/cache'
 IMAGENET_MEAN = [0.485, 0.456, 0.406]         # Mean of ImageNet dataset (used for normalization)
 IMAGENET_STD = [0.229, 0.224, 0.225]          # Std of ImageNet dataset (used for normalization)
 
-take_labels = ['No Finding', 'Atelectasis', 'Cardiomegaly',  'Effusion',  'Pneumonia', 'Pneumothorax', 'Consolidation','Edema' ]
+take_labels = ['No Finding', 'Atelectasis', 'Cardiomegaly',  'Effusion',  'Pneumonia', 'Pneumothorax', 'Consolidation','Edema']
+

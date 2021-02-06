@@ -81,3 +81,20 @@ class CXR1:
         
         return combinations(grid)
 
+
+class Poverty1:
+    fname = 'train.py'
+    
+    @staticmethod
+    def hparams():
+        grid = {
+           'type': ['back', 'front', 'back_front', 'label_flip'],
+           'data': ['poverty'],
+           'data_type': ['Conf', 'Deconf', 'DA', 'IF'],    
+           'corr-coff': list(np.linspace(0.65, 0.95, 4)),
+           'seed': list(range(5)),
+           'samples': [300],
+           'domains': (('malawi', 'kenya', 'tanzania', 'nigeria'),),    
+        }
+        
+        return combinations(grid)

@@ -14,8 +14,8 @@ import math
 import json
 import Constants
 
-# from data.data_camelyon import Camelyon17Dataset
-from data.data_cam import Camelyon, split_train_test, split_n_label, transform  
+from data.data_cam import Camelyon, split_train_test, transform  
+from data.data_cam import split_n_label as cam_split_n_label
 from data import data_cxr
 from utils.logging import setup_logs
 from src.training import train_step
@@ -24,6 +24,8 @@ from src.prediction import prediction_analysis
 from utils.early_stopping import EarlyStopping 
 from utils.checkpointing import save_checkpoint, has_checkpoint, load_checkpoint
 from utils.infinite_loader import StatefulSampler, InfiniteDataLoader
+from data import data_poverty
+from data.data_poverty import split_n_label as poverty_split_n_label
 
 from bootstrap.bootstrap_wilds import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_label_flip
 from model import models
@@ -92,8 +94,8 @@ if __name__ == "__main__":
     parser.add_argument('--qzu0',type=float, required=False, default=0.80) 
     parser.add_argument('--qzu1',type=float, required=False, default=0.95)
 
-    parser.add_argument('--data','-d', type=str, choices = ['camelyon', 'CXR'])
-    parser.add_argument('--domains','-do', nargs = '+', type = int, default=[2,3], required=False)
+    parser.add_argument('--data','-d', type=str, choices = ['camelyon', 'CXR', 'poverty'])
+    parser.add_argument('--domains','-do', nargs = '+', default=[2,3], required=False)
     parser.add_argument('--batch-size','-b', type=int, default=64, required=False)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
@@ -103,11 +105,22 @@ if __name__ == "__main__":
     parser.add_argument('--debug', action = 'store_true')
 
     args = parser.parse_args()
-    
+            
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = True    
+    
+    if args.data == 'camelyon':  
+        args.domains = [int(i) for i in args.domains]
+        split_n_label = cam_split_n_label
+        WildDataset = Camelyon
+    elif args.data == 'poverty':  
+        data_poverty.compute_poverty_split(args.domains)
+        split_n_label = poverty_split_n_label
+        WildDataset = data_poverty.Poverty
+    else:
+        pass
 
     writer = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tensorboard'), comment=run_name)
 
@@ -130,8 +143,8 @@ if __name__ == "__main__":
     batch_size = args.batch_size
 
     # Training samples (confounding and deconfounding)
-    if args.data == 'camelyon':
-        index_n_labels = split_n_label(split = 'train', domains = args.domains, data = args.data)
+    if args.data in Constants.wilds_datasets:
+        index_n_labels = split_n_label(split = 'train', domains = args.domains)
     elif args.data == 'CXR':
         df = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'train')
         index_n_labels = data_cxr.prepare_df_for_cb(df)
@@ -144,8 +157,8 @@ if __name__ == "__main__":
                                    qzu0 = args.qzu0, qzu1 = args.qzu1)
     
     # Validation samples (confounding and deconfounding1)
-    if args.data == 'camelyon':
-        index_n_labels_v = split_n_label(split = 'valid', domains = args.domains, data = args.data)  
+    if args.data in Constants.wilds_datasets:
+        index_n_labels_v = split_n_label(split = 'valid', domains = args.domains)  
     elif args.data == 'CXR':
         df_v = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'val')
         index_n_labels_v = data_cxr.prepare_df_for_cb(df_v)
@@ -159,20 +172,20 @@ if __name__ == "__main__":
     train_type = args.data_type
         
     # Defining the Convolutional model 
-    model_conv = models.get_model(args.type, args.data_type, args.use_pretrained).to(device)
+    model_conv = models.get_model(args.data, args.type, args.data_type, args.use_pretrained).to(device)
 
     # optimizer 
     optimizer = optim.Adam(model_conv.parameters(), lr = args.lr)         
     exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode = 'min', patience=5, factor=0.1)
 
     ## load data of required kind using DataLoader and creating Dataclasses
-    if args.data == 'camelyon':
+    if args.data in Constants.wilds_datasets:
         if train_type in ['Conf', 'DA', 'IF']: 
-            train_data = Camelyon(labels = labels_conf, causal_type = args.type, data_type = args.data_type)
-            valid_data = Camelyon(labels = labels_conf_v, causal_type = args.type, data_type = args.data_type)
+            train_data = WildDataset(labels = labels_conf, causal_type = args.type, data_type = args.data_type)
+            valid_data = WildDataset(labels = labels_conf_v, causal_type = args.type, data_type = args.data_type)
         elif train_type == 'Deconf': 
-            train_data = Camelyon(labels = labels_deconf, causal_type = args.type, data_type = args.data_type)
-            valid_data = Camelyon(labels =  labels_deconf_v, causal_type = args.type, data_type = args.data_type)      
+            train_data = WildDataset(labels = labels_deconf, causal_type = args.type, data_type = args.data_type)
+            valid_data = WildDataset(labels =  labels_deconf_v, causal_type = args.type, data_type = args.data_type)      
     elif args.data == 'CXR':
         if train_type in ['Conf', 'DA', 'IF']: 
             train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train', 
@@ -256,9 +269,9 @@ if __name__ == "__main__":
 #     metrics = dict.fromkeys(key_results, None)
     metrics = {}
     
-    if args.data == 'camelyon':
-        index_n_labels_t = split_n_label(split = 'test', domains = args.domains, data = args.data)
-        index_n_labels_t_real = split_n_label(split = 'test', domains = [4], data = args.data)
+    if args.data in Constants.wilds_datasets:
+        index_n_labels_t = split_n_label(split = 'test', domains = args.domains)
+        index_n_labels_t_real = split_n_label(split = 'test', domains = [4])
     elif args.data == 'CXR':
         df = data_cxr.get_dfs(envs = ['MIMIC', 'CXP'], split = 'test')
         index_n_labels_t = data_cxr.prepare_df_for_cb(df)
@@ -276,8 +289,8 @@ if __name__ == "__main__":
     
     for test_type in keylist_test: 
         if test_type == 'Real':
-            if args.data == 'camelyon':
-                test_data = Camelyon(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
+            if args.data in Constants.wilds_datasets:
+                test_data = WildDataset(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test', 
                                                             causal_type = args.type, data_type = args.data_type)
@@ -293,8 +306,8 @@ if __name__ == "__main__":
                                         N = args.samples, qzy = args.qzy, 
                                        qzu0 = args.qzu0, qzu1 = args.qzu1)    
 
-            if args.data == 'camelyon':
-                test_data = Camelyon(labels = labels_t, causal_type = args.type, data_type = args.data_type)
+            if args.data in Constants.wilds_datasets:
+                test_data = WildDataset(labels = labels_t, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test', 
                                                             causal_type = args.type, data_type = args.data_type)

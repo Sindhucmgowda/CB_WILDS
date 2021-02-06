@@ -15,16 +15,22 @@ import pandas as pd
 from torch.autograd import Variable
 import pickle
 import pdb
+from model import resnet_multispectral
 
-def get_model(causal_type, data_type, use_pretrained):
+def get_model(dataset, causal_type, data_type, use_pretrained):
     if data_type == 'IF':
         if causal_type == 'back':
-            return Conv_conf_emb(use_pretrained, 1)
+            n_extras = 1
         else:
-            return Conv_conf_emb(use_pretrained, 2)
-        
+            n_extras = 2
     else:
-        return Conv_conf_emb(use_pretrained, 0)
+        n_extras = 0
+        
+    if dataset in ['camelyon', 'CXR']:
+        return Conv_conf_emb(use_pretrained, n_extras)
+    elif dataset == 'poverty':
+        return resnet_multispectral.ResNet18(n_extras)
+    
 
 class Conv_conf_emb(nn.Module):
     def __init__(self, use_pretrained, num_extra):
