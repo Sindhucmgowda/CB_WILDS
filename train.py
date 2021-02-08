@@ -34,7 +34,6 @@ from model import models
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn as nn
-# from torch.utils import data
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -114,11 +113,11 @@ if __name__ == "__main__":
     if args.data == 'camelyon':  
         args.domains = [int(i) for i in args.domains]
         split_n_label = cam_split_n_label
-        WildDataset = Camelyon
+        WildsDataset = Camelyon
     elif args.data == 'poverty':  
         data_poverty.compute_poverty_split(args.domains)
         split_n_label = poverty_split_n_label
-        WildDataset = data_poverty.Poverty
+        WildsDataset = data_poverty.Poverty
     else:
         pass
 
@@ -181,11 +180,11 @@ if __name__ == "__main__":
     ## load data of required kind using DataLoader and creating Dataclasses
     if args.data in Constants.wilds_datasets:
         if train_type in ['Conf', 'DA', 'IF']: 
-            train_data = WildDataset(labels = labels_conf, causal_type = args.type, data_type = args.data_type)
-            valid_data = WildDataset(labels = labels_conf_v, causal_type = args.type, data_type = args.data_type)
+            train_data = WildsDataset(labels = labels_conf, causal_type = args.type, data_type = args.data_type)
+            valid_data = WildsDataset(labels = labels_conf_v, causal_type = args.type, data_type = args.data_type)
         elif train_type == 'Deconf': 
-            train_data = WildDataset(labels = labels_deconf, causal_type = args.type, data_type = args.data_type)
-            valid_data = WildDataset(labels =  labels_deconf_v, causal_type = args.type, data_type = args.data_type)      
+            train_data = WildsDataset(labels = labels_deconf, causal_type = args.type, data_type = args.data_type)
+            valid_data = WildsDataset(labels =  labels_deconf_v, causal_type = args.type, data_type = args.data_type)      
     elif args.data == 'CXR':
         if train_type in ['Conf', 'DA', 'IF']: 
             train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train', 
@@ -290,7 +289,7 @@ if __name__ == "__main__":
     for test_type in keylist_test: 
         if test_type == 'Real':
             if args.data in Constants.wilds_datasets:
-                test_data = WildDataset(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
+                test_data = WildsDataset(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test', 
                                                             causal_type = args.type, data_type = args.data_type)
@@ -307,7 +306,7 @@ if __name__ == "__main__":
                                        qzu0 = args.qzu0, qzu1 = args.qzu1)    
 
             if args.data in Constants.wilds_datasets:
-                test_data = WildDataset(labels = labels_t, causal_type = args.type, data_type = args.data_type)
+                test_data = WildsDataset(labels = labels_t, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test', 
                                                             causal_type = args.type, data_type = args.data_type)

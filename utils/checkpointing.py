@@ -30,4 +30,12 @@ def has_checkpoint():
 def load_checkpoint():   
     slurm_job_id = os.environ.get('SLURM_JOB_ID')
     if slurm_job_id is not None and Path('/checkpoint/').exists():
-        return torch.load(f'/checkpoint/{getpass.getuser()}/{slurm_job_id}/chkpt')      
+        return torch.load(f'/checkpoint/{getpass.getuser()}/{slurm_job_id}/chkpt')
+    
+def delete_checkpoint():   
+    slurm_job_id = os.environ.get('SLURM_JOB_ID')
+    chkpt_file = Path(f'/checkpoint/{getpass.getuser()}/{slurm_job_id}/chkpt')
+    if slurm_job_id is not None and chkpt_file.exists():
+        return chkpt_file.unlink()   
+        
+    

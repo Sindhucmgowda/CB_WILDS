@@ -33,8 +33,7 @@ def combinations(grid):
             break
         
     return all_args
-    
-    
+        
 def get_hparams(experiment):
     if experiment not in globals():
         raise NotImplementedError
@@ -98,3 +97,16 @@ class Poverty1:
         }
         
         return combinations(grid)
+    
+class EnvClf:
+    fname = 'train_env.py'
+    
+    @staticmethod
+    def hparams():
+        grid = {
+           'data': ['CXR', 'camelyon', 'poverty', 'NIH', 'MNIST', 'CelebA'],
+           'seed': list(range(5)),
+            '': ['--use_pretrained'] 
+        }
+        
+        return combinations(grid)    

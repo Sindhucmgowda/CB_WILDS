@@ -19,15 +19,7 @@ def train_step(data, target, extras, args, model, writer, device, optimizer, bat
         extras = extras.float().to(device)
 
     output = model(data, extras) ## no softmax applied 
-
-    if args.data == "NIH" or args.data == "MIMIC": 
-        weights = torch.tensor([0.1,0.9], dtype = torch.float).to(device) 
-    if args.data == "CelebA_attr": 
-        weights = torch.tensor([0.2,0.8], dtype = torch.float).to(device)
-    if args.data == "NIH_multi":
-        weights = torch.tensor([0.1,0.8,0.1], dtype = torch.float).to(device)
-    else:
-        weights = None
+    weights = None
 
     loss = cost_fn(output, target, weighting=weights)
 

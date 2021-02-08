@@ -69,10 +69,9 @@ def df_to_labels(df, cutoff):
     
 def split_n_label(split, domains):
     # returns: array of (index, label, conf)
-    if set(domains) == tr_domains: # ID
+    if set(domains).issubset(tr_domains): # ID
         return pd.concat([splits[country][split] for country in domains], axis = 0, ignore_index=True)
     else: # hack so that any other argument to train_domains will return OOD
-        assert(split == 'test')
         return pd.concat([splits[country]['test'] for country in test_domains], axis = 0, ignore_index=True)
     
     
