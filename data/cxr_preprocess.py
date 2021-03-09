@@ -7,9 +7,28 @@ import pandas as pd
 import torch
 from pathlib import Path
 
+def cat_race(r):
+    if r == 'WHITE':
+        return 0
+    elif r == 'BLACK/AFRICAN AMERICAN':
+        return 1
+    else:
+        return 2  
+    
+def cat_gender(g):
+    return 1 if g == 'M' else 0
+
+def cat_insurance(i):
+    if i == 'Medicaid':
+        return 0
+    elif i == 'Medicare':
+        return 1
+    else:
+        return 2   
+
 def preprocess_MIMIC(split, only_frontal):    
     details = pd.read_csv(Constants.MIMIC_details)
-    details = details.drop(columns=['dicom_id', 'study_id', 'religion', 'race', 'insurance', 'marital_status', 'gender'])
+    details = details.drop(columns=['dicom_id', 'study_id', 'religion', 'marital_status', 'gender'])
     details.drop_duplicates(subset="subject_id", keep="first", inplace=True)
     df = pd.merge(split, details)
     
@@ -40,7 +59,11 @@ def preprocess_MIMIC(split, only_frontal):
     df['env'] = 'MIMIC'  
     df.loc[df.Age == 0, 'Age'] = '0-20'
     
-    return df[['subject_id','path','Sex',"Age", 'env', 'frontal', 'study_id'] + Constants.take_labels]
+    df['race'] = df['race'].apply(cat_race)
+    df['Sex'] = df['Sex'].apply(cat_gender)
+    df['insurance'] = df['insurance'].apply(cat_insurance)
+        
+    return df[['subject_id','path','Sex', "Age", 'env', 'frontal', 'study_id', 'race', 'insurance'] + Constants.take_labels]
 
 def preprocess_NIH(split, only_frontal = True):
     split['Patient Age'] = np.where(split['Patient Age'].between(0,19), 19, split['Patient Age'])

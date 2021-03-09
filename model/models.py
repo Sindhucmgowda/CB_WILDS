@@ -17,7 +17,7 @@ import pickle
 import pdb
 from model import resnet_multispectral
 
-def get_model(dataset, causal_type, data_type, use_pretrained):
+def get_model(dataset, causal_type, data_type, use_pretrained, n_outputs = 2):
     if data_type == 'IF':
         if causal_type == 'back':
             n_extras = 1
@@ -31,17 +31,17 @@ def get_model(dataset, causal_type, data_type, use_pretrained):
     elif dataset == 'MNIST':
         return BasicCNN(n_extras)
     else:
-        return Conv_conf_emb(use_pretrained, n_extras)
+        return Conv_conf_emb(use_pretrained, n_extras, n_outputs)
     
 
 class Conv_conf_emb(nn.Module):
-    def __init__(self, use_pretrained, num_extra):
+    def __init__(self, use_pretrained, num_extra, n_outputs = 2):
         super(Conv_conf_emb, self).__init__()
         self.num_extra = num_extra
         self.model_conv = mod.densenet121(pretrained= use_pretrained)         
         self.num_ftrs = self.model_conv.classifier.in_features + num_extra
         self.model_conv.classifier = nn.Identity()
-        self.class_conf =  nn.Linear(self.num_ftrs,2)
+        self.class_conf =  nn.Linear(self.num_ftrs,n_outputs)
 
     def forward(self,x,*args):
         assert(len(args) <= 1) 

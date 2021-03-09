@@ -59,7 +59,7 @@ def prediction_analysis(args, model, device, data_loader, batch_size):
 
     # pdb.set_trace()
 
-    if args.data == "NIH_multi": 
+    if len(np.unique(target_list)) > 2: 
         target_list = np.array(target_list)
         tar_one = np.zeros((target_list.size, target_list.max()+1))
         tar_one[np.arange(target_list.size), target_list] = 1
@@ -70,7 +70,7 @@ def prediction_analysis(args, model, device, data_loader, batch_size):
         prob_list = np.squeeze(np.array(prob_list))[:,1]
         pred_list = np.squeeze(np.array(pred_list))
 
-    if args.data == "NIH_multi": 
+    if len(np.unique(target_list)) > 2: 
         AUC_wo = metrics.roc_auc_score(tar_one,prob_list,average='weighted',multi_class='ovo')
         AUC_mo = metrics.roc_auc_score(tar_one,prob_list,average='macro',multi_class='ovo')
         AUC_wr = metrics.roc_auc_score(tar_one,prob_list,average='weighted',multi_class='ovr')

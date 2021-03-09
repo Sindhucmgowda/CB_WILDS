@@ -10,6 +10,8 @@ import pickle
 from pathlib import Path
 from torch.utils.data import Dataset, ConcatDataset
 
+
+
 def get_dfs(envs = [], split = None, only_frontal = False):
     dfs = []
     for e in envs:
@@ -166,6 +168,7 @@ class AllDatasetsShared(Dataset):
         
         if self.cache and cache_path.is_file():
             img, label, meta = pickle.load(cache_path.open('rb'))
+            meta = item.to_dict() # override
         else:            
             img = np.array(Image.open(item["path"]))
 
@@ -203,7 +206,16 @@ class AllDatasetsShared(Dataset):
             img = self.transform(img)
         
         if self.subset_label:
-            label = int(label[Constants.take_labels.index(self.subset_label)])
+            if self.subset_label in Constants.take_labels:
+                label = int(label[Constants.take_labels.index(self.subset_label)])
+            elif self.subset_label == 'gender':
+                label = meta['Sex']
+            elif self.subset_label == 'ethnicity':
+                label = meta['race']              
+            elif self.subset_label == 'insurance':
+                label = meta['insurance']
+            else:
+                raise NotImplementedError
                 
         return img, label, meta
             

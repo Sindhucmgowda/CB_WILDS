@@ -110,3 +110,16 @@ class EnvClf:
         }
         
         return combinations(grid)    
+    
+class GroupClf:
+    fname = 'train_protected_group.py'
+    
+    @staticmethod
+    def hparams():
+        grid = {
+           'group': ['gender', 'ethnicity', 'insurance'],
+           'seed': list(range(5)),
+            '': ['--use_pretrained'] 
+        }
+        
+        return combinations(grid)        
