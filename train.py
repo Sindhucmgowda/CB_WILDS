@@ -27,7 +27,7 @@ from utils.infinite_loader import StatefulSampler, InfiniteDataLoader
 from data import data_poverty
 from data.data_poverty import split_n_label as poverty_split_n_label
 
-from bootstrap.bootstrap_wilds import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_label_flip
+from bootstrap.bootstrap import cb_backdoor, cb_frontdoor, cb_front_n_back, cb_label_flip
 from model import models
 
 ## Torch

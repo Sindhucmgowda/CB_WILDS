@@ -33,22 +33,15 @@ df_paths = {
         'val': "/scratch/hdd001/projects/ml4h/projects/NIH/split/July16/valid.csv",
         'test': "/scratch/hdd001/projects/ml4h/projects/NIH/split/July16/test.csv"
     },
-    'PAD':{
-        'train': "/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/haoran_split/train.csv",
-        'val': "/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/haoran_split/valid.csv",
-        'test': "/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/haoran_split/test.csv"            
-    }
 }
 
 image_paths = {
     'MIMIC':  "/scratch/hdd001/projects/ml4h/projects/mimic_access_required/MIMIC-CXR/",
     'CXP': "/scratch/hdd001/projects/ml4h/projects/CheXpert/",
     'NIH': "/scratch/hdd001/projects/ml4h/projects/NIH/images/",
-    'PAD': '/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/images-224'
 }
 
 MIMIC_details = "/scratch/hdd001/projects/ml4h/projects/mimic_access_required/MIMIC-CXR/vin_new_split/8-1-1/mimic-cxr-metadata-detail.csv"
-PAD_details = "/scratch/hdd001/projects/ml4h/projects/padchest/PADCHEST/PADCHEST_chest_x_ray_images_labels_160K_01.02.19.csv"
 cache_dir = '/scratch/ssd001/home/haoran/projects/IRM_Clinical/cache'
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]         # Mean of ImageNet dataset (used for normalization)
