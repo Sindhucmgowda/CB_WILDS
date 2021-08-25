@@ -1,8 +1,6 @@
 import numpy as np
 import sys 
 import numpy.random as rand 
-print(sys.executable)
-print(sys.path)
 from scipy.stats import bernoulli 
 import pdb
 import matplotlib.pyplot as plt 
