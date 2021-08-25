@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import torch 
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms  
-import skimage.io as sko 
 from PIL import Image 
 
 from tqdm import tqdm 

@@ -117,31 +117,6 @@ def preprocess_CXP(split, only_frontal):
     split['study_id'] = split['path'].apply(lambda x: x[x.index('patient'):x.rindex('/')])
     return split[['subject_id','path','Sex',"Age", 'env', 'frontal','study_id'] + Constants.take_labels]
 
-
-def preprocess_PAD(split, only_frontal):
-    split['Age'] = np.where(split['Age'].between(0,19), 19, split['Age'])
-    split['Age'] = np.where(split['Age'].between(20,39), 39, split['Age'])
-    split['Age'] = np.where(split['Age'].between(40,59), 59, split['Age'])
-    split['Age'] = np.where(split['Age'].between(60,79), 79, split['Age'])
-    split['Age'] = np.where(split['Age']>=80, 81, split['Age'])
-    
-    split = split.replace([[None], -1, "[False]", "[True]", "[ True]", 19, 39, 59, 79, 81], 
-                            [0, 0, 0, 1, 1, "0-20", "20-40", "40-60", "60-80", "80-"])
-    
-    split.loc[split['Age'] == 0.0, 'Age'] = '0-20'
-    split = split.rename(columns = {
-        'PatientID': 'subject_id',
-        'StudyID': 'study_id',
-        'PatientSex_DICOM' :'Sex'        
-    })
-    
-    split.loc[~split['Sex'].isin(['M', 'F', 'O']), 'Sex'] = 'O'
-    split['path'] =  split['ImageID'].astype(str).apply(lambda x: os.path.join(Constants.image_paths['PAD'], x))
-    if only_frontal:
-        split = split[split['frontal']]
-    split['env'] = 'PAD'
-    return split[['subject_id','path','Sex',"Age", 'env', 'frontal','study_id'] + Constants.take_labels]
-
 def get_process_func(env):
     if env == 'MIMIC':
         return preprocess_MIMIC
@@ -149,7 +124,5 @@ def get_process_func(env):
         return preprocess_NIH
     elif env == 'CXP':
         return preprocess_CXP
-    elif env == 'PAD':
-        return preprocess_PAD
     else:
         raise NotImplementedError        

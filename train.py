@@ -58,11 +58,6 @@ def cb(conf_type, index_n_labels, p, qyu, N, qzy = None, qzu0 = None, qzu1 = Non
         labels_conf, labels_deconf = cb_front_n_back(index_n_labels,p=p,
                                         qyu=qyu,qzy= qzy,
                                         N=N)
-    elif conf_type == 'par_back_front':
-        assert(qzy is not None)
-        labels_conf, labels_deconf = cb_par_front_n_back(index_n_labels,p=p,
-                                        qyu=qyu,qzy= qzy,
-                                        N=N)
     elif conf_type == 'label_flip':
         assert(qzu0 is not None and qzu1 is not None)
         labels_conf, labels_deconf = cb_label_flip(index_n_labels,p=p,
