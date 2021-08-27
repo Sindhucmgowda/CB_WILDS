@@ -45,7 +45,8 @@ class CXR:
            'corr-coff': list(np.linspace(0.65, 0.95, 4)),
            'seed': list(range(5)),
            'samples': [6500],
-           '': ['--use_pretrained'] 
+           'use_pretrained': [True],
+           'cache_cxr': [True]
         }
         
         return combinations(grid)
@@ -90,20 +91,8 @@ class EnvClf:
         grid = {
            'data': ['CXR', 'camelyon', 'poverty', 'NIH', 'MNIST', 'CelebA'],
            'seed': list(range(5)),
-            '': ['--use_pretrained'] 
+            'use_pretrained': [True] 
         }
         
         return combinations(grid)    
-    
-class GroupClf:
-    fname = 'train_protected_group.py'
-    
-    @staticmethod
-    def hparams():
-        grid = {
-           'group': ['gender', 'ethnicity', 'insurance'],
-           'seed': list(range(5)),
-            '': ['--use_pretrained'] 
-        }
         
-        return combinations(grid)        

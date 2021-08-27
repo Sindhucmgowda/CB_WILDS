@@ -42,7 +42,7 @@ import torchvision
 from torchvision import transforms
 
 # args
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description = 'trains a model to predict the environment label')
 parser.add_argument('--output_dir','-l', type=str, required=True)
 parser.add_argument('--log-interval','-i', type=int, required=False, default=1)
 parser.add_argument('--epochs','-e', type=int, required=False, default=15)
@@ -55,6 +55,7 @@ parser.add_argument('--seed', type=int, default=42)
 parser.add_argument('--es_patience', type=int, default=7) # *val_freq steps
 parser.add_argument('--val_freq', type=int, default=200)
 parser.add_argument('--use_pretrained', action = 'store_true')
+parser.add_argument('--cache_cxr', action = 'store_true')
 parser.add_argument('--debug', action = 'store_true')
 
 args = parser.parse_args()
@@ -119,14 +120,14 @@ def split_dataset(ds, first_frac):
 rotate = True if args.data in ['NIH', 'MNIST', 'CelebA'] else False
 
 if args.data == 'CXR':
-    train_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'train', only_frontal = False)
-    train_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'train', only_frontal = False)
+    train_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'train', only_frontal = False, cache = args.cache_cxr)
+    train_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'train', only_frontal = False, cache = args.cache_cxr)
 
-    val_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'val', only_frontal = False)    
-    val_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'val', only_frontal = False)   
+    val_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'val', only_frontal = False, cache = args.cache_cxr)    
+    val_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'val', only_frontal = False, cache = args.cache_cxr)   
 
-    test_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'test', only_frontal = False)
-    test_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'test', only_frontal = False)
+    test_e1 = data_cxr.get_dataset(envs = ['MIMIC'], split = 'test', only_frontal = False, cache = args.cache_cxr)
+    test_e2 = data_cxr.get_dataset(envs = ['CXP'], split = 'test', only_frontal = False, cache = args.cache_cxr)
     
 elif args.data in ['poverty', 'camelyon']:    
     if args.data == 'camelyon':
@@ -144,9 +145,9 @@ elif args.data in ['poverty', 'camelyon']:
     test_e1, test_e2 = wilds_get_merged_dataset(WildsDataset, split_n_label, d1, d2, 'test')
     
 elif args.data == 'NIH':
-    train_e1, train_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'train', only_frontal = False), 0.5)
-    val_e1, val_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'val', only_frontal = False), 0.5)
-    test_e1, test_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'test', only_frontal = False), 0.5)
+    train_e1, train_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'train', only_frontal = False, cache = args.cache_cxr), 0.5)
+    val_e1, val_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'val', only_frontal = False, cache = args.cache_cxr), 0.5)
+    test_e1, test_e2 = split_dataset(data_cxr.get_dataset(envs = ['NIH'], split = 'test', only_frontal = False, cache = args.cache_cxr), 0.5)
     
 elif args.data == 'CelebA':
     transform=transforms.Compose([      

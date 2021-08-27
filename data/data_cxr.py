@@ -3,13 +3,12 @@ import os
 import numpy as np
 from PIL import Image
 import Constants
-from data import cxr_preprocess as preprocess
+from data import cxr_process as preprocess
 import pandas as pd
 from torchvision import transforms
 import pickle
 from pathlib import Path
 from torch.utils.data import Dataset, ConcatDataset
-
 
 
 def get_dfs(envs = [], split = None, only_frontal = False):
@@ -34,7 +33,7 @@ def prepare_df_for_cb(df, positive_env = 'CXP'):
     df2['label'] = (df2['label']).astype(int)
     return df2
     
-def dataset_from_cb_output(orig_df, labels_gen, split, causal_type, data_type):
+def dataset_from_cb_output(orig_df, labels_gen, split, causal_type, data_type, cache = False):
     '''
     massages output from labels_gen (which is only filename, label, conf) into a more informative
         dataframe format to allow for generalized caching in dataloader    
@@ -50,11 +49,11 @@ def dataset_from_cb_output(orig_df, labels_gen, split, causal_type, data_type):
         labels_env.append(labels_gen[subset, :])
     
     dataset = get_dataset(envs, split, only_frontal = False, imagenet_norm = True, augment = 1 if split == 'train' else 0, 
-               cache = True, subset_label = 'Atelectasis', augmented_dfs = augmented_dfs)
+               cache = cache, subset_label = 'Atelectasis', augmented_dfs = augmented_dfs)
     
     return CXRWrapper(dataset, np.concatenate(labels_env), causal_type, data_type)
     
-def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = True, augment = 0, cache = True, subset_label = None,
+def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = True, augment = 0, cache = False, subset_label = None,
                augmented_dfs = None):
       
     if split in ['val', 'test']:
@@ -78,7 +77,7 @@ def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = T
         func = preprocess.get_process_func(e)
         paths = Constants.df_paths[e]
         
-        if split is not None:    
+        if split is not None and split != 'all':    
             splits = [split]
         else:
             splits = ['train', 'val', 'test']
@@ -90,7 +89,8 @@ def get_dataset(envs = [], split = None, only_frontal = False, imagenet_norm = T
             
         for c, s in enumerate(splits):
             cache_dir = Path(Constants.cache_dir)/ f'{e}_{s}/'
-            cache_dir.mkdir(parents=True, exist_ok=True)
+            if cache:
+                cache_dir.mkdir(parents=True, exist_ok=True)
             datasets.append(AllDatasetsShared(dfs[c], transform = transforms.Compose(image_transforms)
                                       , split = split, cache = cache, cache_dir = cache_dir, subset_label = subset_label)) 
                 
@@ -145,7 +145,7 @@ class CXRWrapper(Dataset):
         return x, y, extras
 
 class AllDatasetsShared(Dataset):
-    def __init__(self, dataframe, transform=None, split = None, cache = True, cache_dir = '', subset_label = None):
+    def __init__(self, dataframe, transform=None, split = None, cache = False, cache_dir = '', subset_label = None):
         super().__init__()
         self.dataframe = dataframe
         self.dataset_size = self.dataframe.shape[0]
@@ -208,12 +208,6 @@ class AllDatasetsShared(Dataset):
         if self.subset_label:
             if self.subset_label in Constants.take_labels:
                 label = int(label[Constants.take_labels.index(self.subset_label)])
-            elif self.subset_label == 'gender':
-                label = meta['Sex']
-            elif self.subset_label == 'ethnicity':
-                label = meta['race']              
-            elif self.subset_label == 'insurance':
-                label = meta['insurance']
             else:
                 raise NotImplementedError
                 

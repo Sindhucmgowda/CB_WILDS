@@ -70,7 +70,7 @@ def cb(conf_type, index_n_labels, p, qyu, N, qzy = None, qzu0 = None, qzu1 = Non
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description='Causal Bootstrapping')
     parser.add_argument('--type','-t', type = str, choices = ['back', 'front', 'back_front', 'label_flip'], required = True)
-    parser.add_argument('--samples','-N', type = int, default=8000,required = False)
+    parser.add_argument('--samples','-N', type = int, default=8000,required = False, help = 'number of validation samples')
     parser.add_argument('--no-cuda','-g', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--output_dir','-l', type=str, required=True)
@@ -79,9 +79,6 @@ if __name__ == "__main__":
     parser.add_argument('--epochs','-e', type=int, required=False, default=15)
     
     parser.add_argument('--data_type', choices = ['Conf', 'Deconf', 'DA', 'IF'], required = True)
-
-    # parser.add_argument('--conf-type','-ct',type=str, required=True, default='rot')
-    # parser.add_argument('--conf-val','-cv', type=float, required=False, default=0.5)
     
     parser.add_argument('--corr-coff','-q', type=float, required=False, default=0.95)    
     parser.add_argument('--qzy',type=float, required=False, default=0.95)    # unused for backdoor
@@ -96,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument('--es_patience', type=int, default=7) # *val_freq steps
     parser.add_argument('--val_freq', type=int, default=200)
     parser.add_argument('--use_pretrained', action = 'store_true')
+    parser.add_argument('--cache_cxr', action = 'store_true')
     parser.add_argument('--debug', action = 'store_true')
 
     args = parser.parse_args()
@@ -117,9 +115,6 @@ if __name__ == "__main__":
         pass
 
     writer = SummaryWriter(log_dir=os.path.join(args.output_dir, 'tensorboard'), comment=run_name)
-
-    # to genertate train/val/test split - once generated and stored
-    # split_train_test(train_ratio=0.8, root_dir='/scratch/gobi2/sindhu/datasets/WILDS')
 
     os.makedirs(args.output_dir, exist_ok=True)
     res_pth = os.path.join(args.output_dir, 'results') 
@@ -150,7 +145,7 @@ if __name__ == "__main__":
                                     N = Constants.train_N[args.data], qzy = args.qzy, 
                                    qzu0 = args.qzu0, qzu1 = args.qzu1)
     
-    # Validation samples (confounding and deconfounding1)
+    # Validation samples (confounding and deconfounding)
     if args.data in Constants.wilds_datasets:
         index_n_labels_v = split_n_label(split = 'valid', domains = args.domains)  
     elif args.data == 'CXR':
@@ -160,9 +155,7 @@ if __name__ == "__main__":
     labels_conf_v, labels_deconf_v = cb(args.type, index_n_labels_v, p = 0.5, qyu = qyu_train, 
                                     N = args.samples, qzy = args.qzy, 
                                    qzu0 = args.qzu0, qzu1 = args.qzu1)
-    
-    logger.info(f"sam: {args.samples}, epoch: {args.epochs}")
-    
+        
     train_type = args.data_type
         
     # Defining the Convolutional model 
@@ -183,14 +176,14 @@ if __name__ == "__main__":
     elif args.data == 'CXR':
         if train_type in ['Conf', 'DA', 'IF']: 
             train_data = data_cxr.dataset_from_cb_output(df, labels_conf, split = 'train', 
-                                                         causal_type = args.type, data_type = args.data_type)
+                                                         causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
             valid_data = data_cxr.dataset_from_cb_output(df_v, labels_conf_v, split = 'val', 
-                                                         causal_type = args.type, data_type = args.data_type)
+                                                         causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
         elif train_type == 'Deconf': 
             train_data = data_cxr.dataset_from_cb_output(df, labels_deconf, split = 'train', 
-                                                         causal_type = args.type, data_type = args.data_type)
+                                                         causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
             valid_data = data_cxr.dataset_from_cb_output(df_v, labels_deconf_v, split = 'val', 
-                                                         causal_type = args.type, data_type = args.data_type)
+                                                         causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
         
     train_loader = InfiniteDataLoader(train_data, batch_size=batch_size, num_workers = 1)
     validation_loader = DataLoader(valid_data, batch_size=batch_size*2, shuffle=True) 
@@ -287,7 +280,7 @@ if __name__ == "__main__":
                 test_data = WildsDataset(labels = labels_t_real, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df_real, labels_t_real, split = 'test', 
-                                                            causal_type = args.type, data_type = args.data_type)
+                                                            causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
         else:
             if test_type == 'Conf':
                 qyu = args.corr_coff
@@ -304,7 +297,7 @@ if __name__ == "__main__":
                 test_data = WildsDataset(labels = labels_t, causal_type = args.type, data_type = args.data_type)
             elif args.data == 'CXR':   
                 test_data = data_cxr.dataset_from_cb_output(df, labels_t, split = 'test', 
-                                                            causal_type = args.type, data_type = args.data_type)
+                                                            causal_type = args.type, data_type = args.data_type, cache = args.cache_cxr)
         
         test_loader = DataLoader(test_data, batch_size=batch_size*2, shuffle=True)
 

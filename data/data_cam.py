@@ -66,9 +66,9 @@ class Camelyon(Dataset):
 
 
 ## loading and splitting metadata according to convinience
-def split_n_label(split, domains, data = 'camelyon', root_dir=Constants.wilds_root_dir):
+def split_n_label(split, domains, data = 'camelyon', root_dir=Constants.camelyon_path):
     if data == 'camelyon': 
-        split_dir = os.path.join(root_dir,'camelyon/camelyon17_v1.0',f'{split}.csv')
+        split_dir = os.path.join(root_dir, f'{split}.csv')
         metadata = pd.read_csv(split_dir)
         req_fields = ['filename', 'tumor', 'center']
         metadata = metadata[req_fields]
@@ -77,8 +77,8 @@ def split_n_label(split, domains, data = 'camelyon', root_dir=Constants.wilds_ro
         return metadata
 
 ## loading and splitting metadata according to convinience 
-def split_train_test(train_ratio, root_dir=Constants.wilds_root_dir): 
-    data_dir = os.path.join(root_dir, 'camelyon/camelyon17_v1.0')
+def split_train_test(train_ratio, root_dir=Constants.camelyon_path): 
+    data_dir = root_dir
     # read in metadata 
     metadata_df = pd.read_csv(
             os.path.join(data_dir, 'metadata.csv'),

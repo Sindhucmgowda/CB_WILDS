@@ -52,7 +52,7 @@ To reproduce the experiments in the paper by training grids of models, call `swe
 
 ```
 python sweep.py launch \
-    --experiment Camelyon \
+    --experiment CXR \
     --output_dir /my/sweep/output/path \
     --command_launcher "local" 
 ```
